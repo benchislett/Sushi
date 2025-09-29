@@ -125,8 +125,8 @@ def pillow_drawloss_single(
 
     # Compute the MSE loss between the modified image and the target image.
     if base_loss is None:
-        base_loss = np.mean(
-            (image.astype(np.int64) - target_image.astype(np.int64)) ** 2
+        base_loss = float(
+            np.mean((image.astype(np.int64) - target_image.astype(np.int64)) ** 2)
         )
 
     assert base_loss is not None
