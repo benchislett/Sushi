@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sushi"
+version = "0.1.0"
+description = "Optimized implementations of triangle rasterization for MSE loss."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "pandas"
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "mypy",
+    "pytest",
+    "pre-commit",
+    "matplotlib",
+    "seaborn",
+    "jupyterlab",
+    "ipykernel"
+]
+
+[tool.ruff]
+line-length = 80
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"] # E=pycodestyle errors, F=pyflakes, W=warnings, I=isort
+ignore = ["F401"]
+
+[tool.mypy]
+strict = true
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q"
+testpaths = ["tests"]
