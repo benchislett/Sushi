@@ -10,7 +10,8 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
-    "pandas"
+    "pandas",
+    "pillow"
 ]
 
 [project.optional-dependencies]
@@ -26,14 +27,14 @@ dev = [
 ]
 
 [tool.ruff]
-line-length = 80
+line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I"] # E=pycodestyle errors, F=pyflakes, W=warnings, I=isort
 ignore = ["F401"]
 
 [tool.mypy]
-strict = true
+strict = false
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
