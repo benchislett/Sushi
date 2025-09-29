@@ -20,6 +20,11 @@ def check_image_rgb(image: NDArray[np.uint8]) -> None:
     assert image.dtype == np.uint8  # uint8 RGB values
 
 
+def check_color_rgb(color: NDArray[np.uint8]) -> None:
+    assert color.shape == (3,)
+    assert color.dtype == np.uint8  # uint8 RGB values
+
+
 def check_color_rgba(color: NDArray[np.uint8]) -> None:
     assert color.shape == (4,)
     assert color.dtype == np.uint8  # uint8 RGBA values
