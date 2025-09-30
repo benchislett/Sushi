@@ -13,7 +13,7 @@ def generate_expected_image() -> None:
     image = Image.new("RGB", (width, height), (255, 255, 255))
 
     vertices = [(10, 10), (50, 140), (195, 70)]
-    color = (200, 100, 100, 128)  # RGBA color
+    color = (200, 55, 79, 192)
 
     draw = ImageDraw.Draw(image, "RGBA")
     draw.polygon(vertices, fill=color)

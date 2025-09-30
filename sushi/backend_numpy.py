@@ -1,11 +1,12 @@
-from typing import Optional
+from typing import ClassVar
 
-import cv2
 import numpy as np
 from numpy.typing import NDArray
 
 from sushi.utils import (
+    RasterBackend,
     check_color_rgb,
+    check_color_rgba,
     check_image_rgb,
     check_image_shape,
     check_triangle_vertices,
@@ -47,33 +48,19 @@ def _points_in_triangle(
         A boolean array of shape (N,) where each element is True if the corresponding
         point is inside the triangle, and False otherwise.
     """
-    points_float = points.astype(np.float64)
-    vertices_float = vertices.astype(np.float64)
-    # This implementation uses the Barycentric coordinate system. A point P is inside
-    # a triangle defined by vertices A, B, and C if it can be expressed as:
-    # P = w*A + u*B + v*C, where w, u, v are non-negative and w + u + v = 1.
-    #
-    # We can rewrite this using two vectors originating from one vertex (A):
-    # P - A = u*(B - A) + v*(C - A)
-    #
-    # This vector equation can be solved for u and v. The point is inside the
-    # triangle if u >= 0, v >= 0, and u + v <= 1.
+    p0 = vertices[0]
+    p1 = vertices[1]
+    p2 = vertices[2]
 
-    p0 = vertices_float[0]
-    p1 = vertices_float[1]
-    p2 = vertices_float[2]
-
-    # Define the triangle's edge vectors originating from p0
     v0 = p2 - p0
     v1 = p1 - p0
-    # Define vectors from p0 to each point to be checked
-    v2 = points_float - p0
+    v2 = points - p0
 
-    # Compute dot products to solve the system
+    # Scalar dot products
     dot00 = np.dot(v0, v0)
     dot01 = np.dot(v0, v1)
     dot11 = np.dot(v1, v1)
-    # Vectorized dot product for all points
+    # Vector dot products
     dot20 = np.dot(v2, v0)
     dot21 = np.dot(v2, v1)
 
@@ -85,138 +72,78 @@ def _points_in_triangle(
     # A denominator of zero means the vertices are collinear, so no points are "inside"
     if denominator == 0:
         return np.zeros(len(points), dtype=bool)
-
-    # Calculate barycentric coordinates u and v
-    inv_denom = 1.0 / denominator
-    u = (dot11 * dot20 - dot01 * dot21) * inv_denom
-    v = (dot00 * dot21 - dot01 * dot20) * inv_denom
-
-    # The point is inside if u, v, and w (where w = 1-u-v) are all >= 0.
-    # This simplifies to checking if u >= 0, v >= 0, and u + v <= 1.
-    return (u >= 0) & (v >= 0) & (u + v <= 1)
+    u_scaled = dot11 * dot20 - dot01 * dot21
+    v_scaled = dot00 * dot21 - dot01 * dot20
+    if denominator < 0:
+        return (u_scaled <= 0) & (v_scaled <= 0) & (u_scaled + v_scaled >= denominator)
+    else:
+        return (u_scaled >= 0) & (v_scaled >= 0) & (u_scaled + v_scaled <= denominator)
 
 
-def numpy_count_pixels_single(
-    image_shape: tuple[int, int],
-    vertices: NDArray[np.int32],
-) -> int:
-    """Count the number of pixels that would be drawn over by a triangle on an image
-    of a given shape.
-
-    Args:
-        image_shape: The shape of the image, a tuple (H, W).
-        vertices: The vertices of the triangle, an array of shape (3, 2)
-            with dtype np.int32 representing the (x, y) coordinates of the
-            triangle's corners, with the origin at the top-left corner of the image.
-
-    Returns:
-        The number of pixels that would be colored when the triangle is drawn.
-    """
-    check_image_shape(image_shape)
-    check_triangle_vertices(vertices)
-    pixel_coords = _pixel_array(image_shape)
-    inside_mask = _points_in_triangle(pixel_coords, vertices)
-    num_colored_pixels = int(np.sum(inside_mask))
-    return num_colored_pixels
-
-
-def numpy_draw_single_inplace(
-    image: NDArray[np.uint8],
-    vertices: NDArray[np.int32],
-    color: NDArray[np.uint8],
-) -> None:
-    """Draw a triangle over a given image. The input image is modified in place.
-
-    Args:
-        image: The base image, an array of shape (H, W, 3) with dtype np.uint8.
-        vertices: The vertices of the triangle, an array of shape (3, 2)
-            with dtype np.int32 representing the (x, y) coordinates of the
-            triangle's corners, with the origin at the top-left corner of the image.
-        color: The color of the triangle, an array of shape (3,) with dtype np.uint8,
-            representing the RGB color of the triangle.
-    """
-    check_image_rgb(image)
-    check_triangle_vertices(vertices)
-    check_color_rgb(color)
-
-    pixel_coords = _pixel_array(image.shape[:2])
-    inside_mask = _points_in_triangle(pixel_coords, vertices)
-    image.reshape(-1, 3)[inside_mask] = color
-
-
-def numpy_draw_single(
-    image: NDArray[np.uint8],
-    vertices: NDArray[np.int32],
-    color: NDArray[np.uint8],
+def composit_over(
+    foreground: NDArray[np.uint8],
+    background: NDArray[np.uint8],
+    alpha: float,
 ) -> NDArray[np.uint8]:
-    """Draw a triangle over a given image. The input image is unmodified.
+    """Composite a foreground color over a background color using the given alpha.
 
     Args:
-        image: The base image, an array of shape (H, W, 3) with dtype np.uint8.
-        vertices: The vertices of the triangle, an array of shape (3, 2)
-            with dtype np.int32 representing the (x, y) coordinates of the
-            triangle's corners, with the origin at the top-left corner of the image.
-        color: The color of the triangle, an array of shape (3,) with dtype np.uint8,
-            representing the RGB color of the triangle.
-
+        foreground: The foreground color, an array of shape (N,3) with dtype np.uint8
+        background: The background color, an array of shape (N,3) with dtype np.uint8
+        alpha: The alpha value for the foreground color, a float in [0.0, 1.0].
     Returns:
-        The modified image with the triangle drawn on it.
+        The composited color, an array of shape (N,3) with dtype np.uint8.
     """
-    check_image_rgb(image)
-    check_triangle_vertices(vertices)
-    check_color_rgb(color)
-
-    image_copy = image.copy()
-    numpy_draw_single_inplace(image_copy, vertices, color)
-    return image_copy
+    return (foreground * alpha + background * (1 - alpha)).astype(np.uint8)
 
 
-def numpy_drawloss_single(
-    image: NDArray[np.uint8],
-    target_image: NDArray[np.uint8],
-    vertices: NDArray[np.int32],
-    color: NDArray[np.uint8],
-    base_loss: Optional[float] = None,
-) -> float:
-    """Calculate the MSE loss delta that would be incurred by drawing a triangle
-    over a given image, compared to a target image. The input image is unmodified.
+class NumpyRasterBackend(RasterBackend):
+    name: ClassVar[str] = "numpy"
 
-    Args:
-        image: The base image, an array of shape (H, W, 3) with dtype np.uint8.
-        target_image: The target image, an array of shape (H, W, 3) with dtype np.uint8.
-        vertices: The vertices of the triangle, an array of shape (3, 2)
-            with dtype np.int32 representing the (x, y) coordinates of the
-            triangle's corners, with the origin at the top-left corner of the image.
-        color: The color of the triangle, an array of shape (3,) with dtype np.uint8,
-            representing the RGB color of the triangle.
-        base_loss: If provided, the MSE loss between the base and the target image.
-            If not provided, it will be computed.
+    @classmethod
+    def triangle_count_pixels_single(
+        cls: type["NumpyRasterBackend"],
+        image_shape: tuple[int, int],
+        vertices: NDArray[np.int32],
+    ) -> int:
+        check_image_shape(image_shape)
+        check_triangle_vertices(vertices)
+        pixel_coords = _pixel_array(image_shape)
+        inside_mask = _points_in_triangle(pixel_coords, vertices)
+        num_colored_pixels = int(np.sum(inside_mask))
+        return num_colored_pixels
 
-    Returns:
-        The MSE loss delta `x` such that:
-        `MSE(draw(triangle, image), target_image) == MSE(image, target_image) + x`.
-    """
-    check_image_rgb(image)
-    check_image_rgb(target_image)
-    check_triangle_vertices(vertices)
-    check_color_rgb(color)
+    @classmethod
+    def triangle_draw_single_rgb_inplace(
+        cls: type["NumpyRasterBackend"],
+        image: NDArray[np.uint8],
+        vertices: NDArray[np.int32],
+        color: NDArray[np.uint8],
+    ) -> None:
+        check_image_rgb(image)
+        check_triangle_vertices(vertices)
+        check_color_rgb(color)
 
-    modified_image = image.copy()
-    numpy_draw_single_inplace(modified_image, vertices, color)
+        pixel_coords = _pixel_array(image.shape[:2])
+        inside_mask = _points_in_triangle(pixel_coords, vertices)
+        image.reshape(-1, 3)[inside_mask] = color
 
-    # Compute the MSE loss between the modified image and the target image.
-    if base_loss is None:
-        base_loss = float(
-            np.mean((image.astype(np.int64) - target_image.astype(np.int64)) ** 2)
+    @classmethod
+    def triangle_draw_single_rgba_inplace(
+        cls: type["NumpyRasterBackend"],
+        image: NDArray[np.uint8],
+        vertices: NDArray[np.int32],
+        color: NDArray[np.uint8],
+    ) -> None:
+        check_image_rgb(image)
+        check_triangle_vertices(vertices)
+        check_color_rgba(color)
+
+        pixel_coords = _pixel_array(image.shape[:2])
+        inside_mask = _points_in_triangle(pixel_coords, vertices)
+        alpha = color[3] / 255.0
+        image.reshape(-1, 3)[inside_mask] = composit_over(
+            np.tile(color[:3], (np.sum(inside_mask), 1)),
+            image.reshape(-1, 3)[inside_mask],
+            alpha,
         )
-
-    assert base_loss is not None
-    assert base_loss >= 0.0, "Base MSE should be non-negative."
-
-    modified_loss = np.mean(
-        (modified_image.astype(np.int64) - target_image.astype(np.int64)) ** 2
-    )
-
-    loss_delta = modified_loss - base_loss
-
-    return float(loss_delta)
