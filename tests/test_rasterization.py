@@ -3,14 +3,21 @@ from pathlib import Path
 
 import numpy as np
 import pytest
+from numpy.typing import NDArray
 from PIL import Image
 
 from sushi.backend_numpy import NumpyRasterBackend
 from sushi.backend_opencv import OpenCVRasterBackend
+from sushi.backend_opengl import OpenGLRasterBackend
 from sushi.backend_pillow import PillowRasterBackend
 from sushi.utils import RasterBackend, np_image_mse
 
-AllBackends = [PillowRasterBackend, OpenCVRasterBackend, NumpyRasterBackend]
+AllBackends = [
+    PillowRasterBackend,
+    OpenCVRasterBackend,
+    NumpyRasterBackend,
+    OpenGLRasterBackend,
+]
 
 
 @dataclass
@@ -21,13 +28,13 @@ class TestImageData:
 
     width: int
     height: int
-    vertices: np.ndarray
-    color: np.ndarray
-    image_np: np.ndarray
-    expected_image_np: np.ndarray
+    vertices: NDArray[np.int32]
+    color: NDArray[np.uint8]
+    image_np: NDArray[np.uint8]
+    expected_image_np: NDArray[np.uint8]
 
 
-def _load_test_image() -> np.ndarray:
+def _load_test_image() -> NDArray[np.uint8]:
     """Helper function to load the reference test image."""
     expected_image_path = Path(__file__).parent / "data/expected_sample_triangle.png"
     if not expected_image_path.exists():
