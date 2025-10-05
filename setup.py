@@ -1,8 +1,8 @@
+import glob
 import os
+import shutil
 import subprocess
 import sys
-import glob
-import shutil
 
 import nanobind
 from setuptools import Extension, setup

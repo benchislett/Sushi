@@ -8,7 +8,7 @@ project(sushi_core)
 # set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # Try to import all Python components potentially needed by nanobind
-find_package(Python 3.8 
+find_package(Python 3.8
   REQUIRED COMPONENTS Interpreter Development.Module
   OPTIONAL_COMPONENTS Development.SABIModule)
 
@@ -40,5 +40,5 @@ nanobind_add_module(
 # Ensure proper include directories
 target_include_directories(sushi_core PRIVATE ${nanobind_INCLUDE_DIRS})
 
-# Install directive for scikit-build-core  
+# Install directive for scikit-build-core
 install(TARGETS sushi_core LIBRARY DESTINATION sushi)

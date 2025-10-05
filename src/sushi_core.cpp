@@ -25,12 +25,12 @@ public:
         // Get array dimensions
         size_t height = image.shape(0);
         size_t width = image.shape(1);
-        
+
         // Get direct pointers to the data
         uint8_t* image_data = image.data();
         const int32_t* vertex_data = vertices.data();
         const uint8_t* color_data = color.data();
-        
+
         // Extract RGBA color components
         const uint8_t r = color_data[0];
         const uint8_t g = color_data[1];
@@ -64,7 +64,7 @@ public:
         } else { // CW, swap v1 and v2 to make it CCW
             v0 = &vertex_data[0]; v1 = &vertex_data[4]; v2 = &vertex_data[2];
         }
-        
+
         // --- 2. Calculate Bounding Box and Clip to Image ---
         int32_t min_x = std::max(0, std::min({v0[0], v1[0], v2[0]}));
         int32_t max_x = std::min((int32_t)width, std::max({v0[0], v1[0], v2[0]}) + 1);
@@ -110,7 +110,7 @@ public:
                 int64_t w0_row = (int64_t)(x_start - v0[0]) * dy01 - (int64_t)(y_start - v0[1]) * dx01;
                 int64_t w1_row = (int64_t)(x_start - v1[0]) * dy12 - (int64_t)(y_start - v1[1]) * dx12;
                 int64_t w2_row = (int64_t)(x_start - v2[0]) * dy20 - (int64_t)(y_start - v2[1]) * dx20;
-                
+
                 for (int32_t y = y_start; y < y_end; ++y) {
                     int64_t w0 = w0_row;
                     int64_t w1 = w1_row;
@@ -145,12 +145,12 @@ public:
         // Get array dimensions
         const int32_t height = image.shape(0);
         const int32_t width = image.shape(1);
-        
+
         // Get direct pointers to the data
         uint8_t* image_data = image.data();
         const int32_t* vertex_data = vertices.data();
         const uint8_t* color_data = color.data();
-        
+
         // Extract RGBA color components
         const uint8_t r = color_data[0];
         const uint8_t g = color_data[1];
@@ -205,7 +205,7 @@ public:
 
                 int32_t x_start_clipped = std::max(0, x_start);
                 int32_t x_end_clipped = std::min(width, x_end + 1);
-                
+
                 uint8_t* pixel = image_data + (y * width + x_start_clipped) * 3;
                 for (int32_t x = x_start_clipped; x < x_end_clipped; ++x) {
                     if (a == 255) {
@@ -222,7 +222,7 @@ public:
                 x2_fixed += dx02_fixed;
             }
         }
-        
+
         // Draw the bottom part of the triangle (top-flat)
         if (v1[1] < v2[1]) {
             int32_t dy12 = v2[1] - v1[1];
@@ -246,14 +246,14 @@ public:
                 x1_fixed += dx12_fixed * y_diff;
                 x2_fixed += dx02_fixed * y_diff;
             }
-            
+
             for (int32_t y = y_start; y < y_end; ++y) {
                 int32_t x_start = x1_fixed < x2_fixed ? (x1_fixed >> FIXED_SHIFT) : (x2_fixed >> FIXED_SHIFT);
                 int32_t x_end = x1_fixed < x2_fixed ? (x2_fixed >> FIXED_SHIFT) : (x1_fixed >> FIXED_SHIFT);
 
                 int32_t x_start_clipped = std::max(0, x_start);
                 int32_t x_end_clipped = std::min(width, x_end + 1);
-                
+
                 uint8_t* pixel = image_data + (y * width + x_start_clipped) * 3;
                 for (int32_t x = x_start_clipped; x < x_end_clipped; ++x) {
                     if (a == 255) {
@@ -322,7 +322,7 @@ public:
             // This accumulator holds the sum of (new_error^2 - old_error^2)
             int64_t total_sq_err_delta = 0;
             const int32_t FIXED_SHIFT = 16;
-            
+
             // --- 2. Rasterize top half (bottom-flat triangle) ---
             if (v0[1] < v1[1]) {
                 int32_t dy01 = v1[1] - v0[1];
@@ -349,7 +349,7 @@ public:
 
                     int32_t x_start_clipped = std::max(0, x_start);
                     int32_t x_end_clipped = std::min(width, x_end + 1);
-                    
+
                     for (int32_t x = x_start_clipped; x < x_end_clipped; ++x) {
                         const size_t idx = (y * width + x) * 3;
                         const uint8_t *p_img = image_data + idx;
@@ -368,15 +368,15 @@ public:
                         int32_t err_new_g = (int32_t)mod_g - p_tgt[1];
                         int32_t err_new_b = (int32_t)mod_b - p_tgt[2];
 
-                        total_sq_err_delta += (err_new_r*err_new_r - err_old_r*err_old_r) + 
-                                              (err_new_g*err_new_g - err_old_g*err_old_g) + 
+                        total_sq_err_delta += (err_new_r*err_new_r - err_old_r*err_old_r) +
+                                              (err_new_g*err_new_g - err_old_g*err_old_g) +
                                               (err_new_b*err_new_b - err_old_b*err_old_b);
                     }
                     x1_fixed += dx01_fixed;
                     x2_fixed += dx02_fixed;
                 }
             }
-            
+
             // --- 3. Rasterize bottom half (top-flat triangle) ---
             if (v1[1] < v2[1]) {
                 int32_t dy12 = v2[1] - v1[1];
@@ -399,14 +399,14 @@ public:
                     x1_fixed += dx12_fixed * y_diff;
                     x2_fixed += dx02_fixed * y_diff;
                 }
-                
+
                 for (int32_t y = y_start; y < y_end; ++y) {
                     int32_t x_start = x1_fixed < x2_fixed ? (x1_fixed >> FIXED_SHIFT) : (x2_fixed >> FIXED_SHIFT);
                     int32_t x_end = x1_fixed < x2_fixed ? (x2_fixed >> FIXED_SHIFT) : (x1_fixed >> FIXED_SHIFT);
 
                     int32_t x_start_clipped = std::max(0, x_start);
                     int32_t x_end_clipped = std::min(width, x_end + 1);
-                    
+
                     for (int32_t x = x_start_clipped; x < x_end_clipped; ++x) {
                         const size_t idx = (y * width + x) * 3;
                         const uint8_t *p_img = image_data + idx;
@@ -415,7 +415,7 @@ public:
                         int32_t err_old_r = (int32_t)p_img[0] - p_tgt[0];
                         int32_t err_old_g = (int32_t)p_img[1] - p_tgt[1];
                         int32_t err_old_b = (int32_t)p_img[2] - p_tgt[2];
-                        
+
                         const uint32_t inv_a = 255 - a;
                         uint8_t mod_r = (uint8_t)(((uint32_t)r * a + (uint32_t)p_img[0] * inv_a + 128) >> 8);
                         uint8_t mod_g = (uint8_t)(((uint32_t)g * a + (uint32_t)p_img[1] * inv_a + 128) >> 8);
@@ -425,8 +425,8 @@ public:
                         int32_t err_new_g = (int32_t)mod_g - p_tgt[1];
                         int32_t err_new_b = (int32_t)mod_b - p_tgt[2];
 
-                        total_sq_err_delta += (err_new_r*err_new_r - err_old_r*err_old_r) + 
-                                              (err_new_g*err_new_g - err_old_g*err_old_g) + 
+                        total_sq_err_delta += (err_new_r*err_new_r - err_old_r*err_old_r) +
+                                              (err_new_g*err_new_g - err_old_g*err_old_g) +
                                               (err_new_b*err_new_b - err_old_b*err_old_b);
                     }
                     x1_fixed += dx12_fixed;
@@ -443,9 +443,9 @@ public:
 
 NB_MODULE(sushi_core, m) {
     m.doc() = "Sushi C++ rasterization backend";
-    
+
     nb::class_<CPPRasterBackend>(m, "CPPRasterBackend")
-        .def_static("triangle_draw_single_rgba_inplace", 
+        .def_static("triangle_draw_single_rgba_inplace",
                    &CPPRasterBackend::triangle_draw_single_rgba_inplace,
                    "image"_a, "vertices"_a, "color"_a,
                    "Draw a triangle with RGBA color and alpha blending (in-place)")
