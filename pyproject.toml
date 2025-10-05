@@ -10,7 +10,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "sushi"
 version = "0.1.0"
-description = "Optimized implementations of triangle rasterization for MSE loss."
+description = "Optimized implementations of triangle rasterization for loss calculation."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [

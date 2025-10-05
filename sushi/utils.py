@@ -36,25 +36,26 @@ def check_triangle_vertices(vertices: NDArray[np.int32]) -> None:
     assert vertices.dtype == np.int32  # int32 pixel coordinates
 
 
-def np_image_mse(
+def np_image_loss(
     image1: NDArray[np.uint8],
     image2: NDArray[np.uint8],
-) -> float:
-    """Compute the mean squared error between two images.
+) -> int:
+    """Compute the sum of squared error between two images.
+    Dividing the output by `width * height * 3` will produce a normalized MSE.
 
     Args:
         image1: The first image, an array of shape (H, W, 3) with dtype np.uint8.
         image2: The second image, an array of shape (H, W, 3) with dtype np.uint8.
 
     Returns:
-        The mean squared error between the two images.
+        The sum of squared error values between the two images.
     """
     check_image_rgb(image1)
     check_image_rgb(image2)
     assert image1.shape == image2.shape
 
-    mse = np.mean((image1.astype(np.int64) - image2.astype(np.int64)) ** 2)
-    return float(mse)
+    mse = np.sum((image1.astype(np.int64) - image2.astype(np.int64)) ** 2)
+    return int(mse.item())
 
 
 class RasterBackend(ABC):
