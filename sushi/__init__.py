@@ -1,4 +1,4 @@
-"""Sushi: Optimized implementations of triangle rasterization for MSE loss."""
+"""Sushi: Optimized implementations of triangle rasterization for loss calculation."""
 
 from sushi.backend_numpy import NumpyRasterBackend
 from sushi.backend_opencv import OpenCVRasterBackend
@@ -12,7 +12,7 @@ try:
 except ImportError:
     _HAS_CPP = False
 
-from sushi.utils import RasterBackend, np_image_mse
+from sushi.utils import RasterBackend, np_image_loss
 
 __all__ = [
     "RasterBackend",
@@ -20,7 +20,7 @@ __all__ = [
     "OpenCVRasterBackend",
     "OpenGLRasterBackend",
     "PillowRasterBackend",
-    "np_image_mse",
+    "np_image_loss",
 ]
 
 if _HAS_CPP:

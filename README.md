@@ -1,5 +1,5 @@
 # Sushi
-Optimized implementations of rasterized triangle fused draw-MSE-loss
+Optimized implementations of rasterized triangle fused draw+loss
 
 ## Quickstart
 
