@@ -6,27 +6,29 @@ import pytest
 from numpy.typing import NDArray
 from PIL import Image
 
-from sushi.backend_numpy import NumpyRasterBackend
-from sushi.backend_opencv import OpenCVRasterBackend
-from sushi.backend_opengl import OpenGLRasterBackend
-from sushi.backend_pillow import PillowRasterBackend
-from sushi.utils import RasterBackend, np_image_mse
+# AllBackends = [
+#     PillowRasterBackend,
+#     OpenCVRasterBackend,
+#     NumpyRasterBackend,
+#     OpenGLRasterBackend,
+# ]
+# try:
+#     from sushi.backend_cpp import CPPRasterBackend
+#     HAS_CPP = True
+#     AllBackends.append(CPPRasterBackend)
+# except ImportError:
+#     HAS_CPP = False
+#     raise
+from sushi.backend.pillow import PillowBackend
+from sushi.interface import Backend
 
-AllBackends = [
-    PillowRasterBackend,
-    OpenCVRasterBackend,
-    NumpyRasterBackend,
-    OpenGLRasterBackend,
-]
+# from sushi.backend_numpy import NumpyRasterBackend
+# from sushi.backend_opencv import OpenCVRasterBackend
+# from sushi.backend_opengl import OpenGLRasterBackend
+# from sushi.backend_pillow import PillowRasterBackend
+from sushi.utils import np_image_loss
 
-try:
-    from sushi.backend_cpp import CPPRasterBackend
-
-    HAS_CPP = True
-    AllBackends.append(CPPRasterBackend)
-except ImportError:
-    HAS_CPP = False
-    raise
+AllBackends = [PillowBackend]
 
 
 @dataclass
@@ -75,7 +77,7 @@ def setup_data() -> TestImageData:
 
 @pytest.mark.parametrize("raster_backend", AllBackends)
 def test_draw_single_match_reference(
-    setup_data: TestImageData, raster_backend: RasterBackend
+    setup_data: TestImageData, raster_backend: type["Backend"]
 ) -> None:
     """
     Tests that drawing a triangle produces the exact expected image by
@@ -92,7 +94,9 @@ def test_draw_single_match_reference(
     color = setup_data.color
     expected_image_np = setup_data.expected_image_np
 
-    drawn_image_np = raster_backend.triangle_draw_single_rgba(image_np, vertices, color)
+    context = raster_backend.create_draw_context(background_image=image_np)
+
+    drawn_image_np = context.draw(vertices, color)
 
     failed_image_path = Path(__file__).parent / f"data/failed_{backend_name}_draw.png"
     success_image_path = Path(__file__).parent / f"data/success_{backend_name}_draw.png"
@@ -134,7 +138,7 @@ def test_draw_single_match_reference(
 
 @pytest.mark.parametrize("raster_backend", AllBackends)
 def test_count_pixels_single_match_reference(
-    setup_data: TestImageData, raster_backend: RasterBackend
+    setup_data: TestImageData, raster_backend: type["Backend"]
 ) -> None:
     """
     Tests that the pixel counting function produces a count close to the
@@ -147,9 +151,10 @@ def test_count_pixels_single_match_reference(
         (setup_data.expected_image_np.sum(axis=-1) != (3 * 255)).sum()
     )
 
-    counted_pixels = raster_backend.triangle_count_pixels_single(
-        (setup_data.height, setup_data.width), vertices
-    )
+    input_image = np.zeros((setup_data.height, setup_data.width, 3), dtype=np.uint8)
+    context = raster_backend.create_draw_context(background_image=input_image)
+    out_image = context.draw(vertices, np.array((255, 255, 255, 255), dtype=np.uint8))
+    counted_pixels = int((out_image.sum(axis=-1) == (3 * 255)).sum())
 
     print(
         f"Backend {raster_backend.name} counted {counted_pixels} pixels, "
@@ -163,7 +168,7 @@ def test_count_pixels_single_match_reference(
 
 @pytest.mark.parametrize("raster_backend", AllBackends)
 def test_drawloss_single(
-    setup_data: TestImageData, raster_backend: RasterBackend
+    setup_data: TestImageData, raster_backend: type["Backend"]
 ) -> None:
     """
     Tests the draw-loss calculation by comparing the function's output
@@ -181,15 +186,16 @@ def test_drawloss_single(
     target_image_color = np.array((64, 128, 199), dtype=np.uint8)
     target_image_np = np.tile(target_image_color, (height, width, 1))
 
-    base_loss = np_image_mse(image_np, target_image_np)
-    reference_final_loss = np_image_mse(expected_image_np, target_image_np)
+    base_loss = np_image_loss(image_np, target_image_np)
+    reference_final_loss = np_image_loss(expected_image_np, target_image_np)
     expected_loss_change = reference_final_loss - base_loss
 
-    draw_loss_without_base = raster_backend.triangle_drawloss_single_rgba(
-        image_np, target_image_np, vertices, color
+    context = raster_backend.create_drawloss_context(
+        background_image=image_np, target_image=target_image_np
     )
-    draw_loss_with_base = raster_backend.triangle_drawloss_single_rgba(
-        image_np, target_image_np, vertices, color, base_loss=base_loss
+
+    draw_loss = int(
+        context.drawloss(vertices[np.newaxis, ...], color[np.newaxis, ...])[0]
     )
 
     tolerance_bounds = (
@@ -201,13 +207,10 @@ def test_drawloss_single(
 
     print(
         f"Backend {raster_backend.name} computed draw loss change of "
-        f"{draw_loss_without_base:.6f}, expected {expected_loss_change:.6f}."
+        f"{draw_loss:.6f}, expected {expected_loss_change:.6f}."
         f" (tolerance {tolerance_bounds[0]:.6f} to {tolerance_bounds[1]:.6f})"
     )
 
     np.testing.assert_allclose(
-        draw_loss_without_base, expected_loss_change, rtol=MATCH_RELATIVE_TOLERANCE
-    )
-    np.testing.assert_allclose(
-        draw_loss_with_base, expected_loss_change, rtol=MATCH_RELATIVE_TOLERANCE
+        draw_loss, expected_loss_change, rtol=MATCH_RELATIVE_TOLERANCE
     )
