@@ -21,5 +21,6 @@
         "cstdint": "cpp",
         "algorithm": "cpp"
     },
-    "cmake.sourceDirectory": "${workspaceFolder}/src"
+    "cmake.sourceDirectory": "${workspaceFolder}/src",
+    "notebook.formatOnSave.enabled": true
 }

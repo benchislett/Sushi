@@ -259,3 +259,6 @@ CMakeUserPresets.json
 # test output artifacts
 tests/data/success_*.png
 tests/data/failed_*.png
+
+# local development files
+scratchpad.ipynb
