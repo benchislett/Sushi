@@ -315,8 +315,8 @@ class RasterBackend(ABC):
             vertices: The vertices of the triangles, an array of shape (N, 3, 2)
                 with dtype np.int32 representing the (x, y) coordinates of the
                 triangles' corners, with the origin at the top-left corner of the image.
-            colors: The colors of the triangles, an array of shape (N, 4) with dtype np.uint8
-                representing the RGBA colors of the triangles.
+            colors: The colors of the triangles, an array of shape (N, 4) with
+                dtype np.uint8 representing the RGBA colors of the triangles.
             base_loss: If provided, the MSE loss between the base and the target image.
                 If not provided, it will be computed.
 

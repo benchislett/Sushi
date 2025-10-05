@@ -78,6 +78,8 @@ class CPPRasterBackend(RasterBackend):
         color: NDArray[np.uint8],
         base_loss: Optional[float] = None,
     ) -> float:
-        return cls.triangle_drawloss_batch_rgba(
-            image, target_image, vertices[None, :, :], color[None, :]
-        )[0].item()
+        return float(
+            cls.triangle_drawloss_batch_rgba(
+                image, target_image, vertices[None, :, :], color[None, :]
+            )[0].item()
+        )
