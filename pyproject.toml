@@ -1,5 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = [
+    "setuptools>=61.0",
+    "nanobind>=1.6.0",
+    "cmake>=3.15",
+    "ninja; platform_system!='Windows'"
+]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -13,7 +18,8 @@ dependencies = [
     "pandas",
     "pillow",
     "moderngl",
-    "opencv-python"
+    "opencv-python",
+    "nanobind>=1.6.0"
 ]
 
 [project.optional-dependencies]
@@ -44,3 +50,10 @@ disallow_untyped_decorators = false
 minversion = "6.0"
 addopts = "-ra -q"
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["sushi*"]
+
+[tool.setuptools]
+zip-safe = false

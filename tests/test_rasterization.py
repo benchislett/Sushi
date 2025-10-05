@@ -19,6 +19,15 @@ AllBackends = [
     OpenGLRasterBackend,
 ]
 
+try:
+    from sushi.backend_cpp import CPPRasterBackend
+
+    HAS_CPP = True
+    AllBackends.append(CPPRasterBackend)
+except ImportError:
+    HAS_CPP = False
+    raise
+
 
 @dataclass
 class TestImageData:

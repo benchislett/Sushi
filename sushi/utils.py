@@ -294,3 +294,40 @@ class RasterBackend(ABC):
         """
         modified_image = cls.triangle_draw_single_rgba(image, vertices, color)
         return cls._compute_drawloss(image, target_image, modified_image, base_loss)
+
+    @classmethod
+    def triangle_drawloss_batch_rgba(
+        cls: type["RasterBackend"],
+        image: NDArray[np.uint8],
+        target_image: NDArray[np.uint8],
+        vertices: NDArray[np.int32],
+        colors: NDArray[np.uint8],
+        base_loss: Optional[float] = None,
+    ) -> NDArray[np.float32]:
+        """Calculate the MSE loss delta that would be incurred by drawing a batch of
+        triangles over a given image, compared to a target image. The input image is
+        unmodified. The scores are computed independently for each triangle, equivalent
+        to a loop over `triangle_drawloss_single_rgba`.
+
+        Args:
+            image: The base RGB image, an array of shape (H, W, 3) with dtype np.uint8.
+            target_image: The target RGB image, of same type and shape as `image`.
+            vertices: The vertices of the triangles, an array of shape (N, 3, 2)
+                with dtype np.int32 representing the (x, y) coordinates of the
+                triangles' corners, with the origin at the top-left corner of the image.
+            colors: The colors of the triangles, an array of shape (N, 4) with dtype np.uint8
+                representing the RGBA colors of the triangles.
+            base_loss: If provided, the MSE loss between the base and the target image.
+                If not provided, it will be computed.
+
+        Returns:
+            An array of shape (N,) with the MSE loss deltas for each triangle.
+        """
+        return np.array(
+            [
+                cls.triangle_drawloss_single_rgba(
+                    image, target_image, vertices[i], colors[i], base_loss
+                )
+                for i in range(vertices.shape[0])
+            ]
+        )
