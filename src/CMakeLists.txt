@@ -3,9 +3,9 @@ cmake_minimum_required(VERSION 3.20...3.28)
 project(sushi_core)
 
 # Enable CUDA
-# enable_language(CUDA)
-# set(CMAKE_CUDA_STANDARD 14)
-# set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+enable_language(CUDA)
+set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
 # Try to import all Python components potentially needed by nanobind
 find_package(Python 3.8
@@ -42,3 +42,9 @@ target_include_directories(sushi_core PRIVATE ${nanobind_INCLUDE_DIRS})
 
 # Install directive for scikit-build-core
 install(TARGETS sushi_core LIBRARY DESTINATION sushi)
+
+# set max optimizations for nvcc
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 --use_fast_math")
+
+add_executable(test_sushi_core test_cuda.cu)
+set_property(TARGET test_sushi_core PROPERTY CUDA_ARCHITECTURES native)
