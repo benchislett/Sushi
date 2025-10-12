@@ -7,6 +7,7 @@ from numpy.typing import NDArray
 from PIL import Image
 
 from sushi.backend.cpp import CPPBackend
+from sushi.backend.cuda import CUDABackend
 from sushi.backend.numpy import NumpyBackend
 from sushi.backend.opencv import OpenCVBackend
 from sushi.backend.opengl import OpenGLBackend
@@ -14,7 +15,14 @@ from sushi.backend.pillow import PillowBackend
 from sushi.interface import Backend
 from sushi.utils import np_image_loss
 
-AllBackends = [PillowBackend, NumpyBackend, OpenCVBackend, OpenGLBackend, CPPBackend]
+AllBackends = [
+    PillowBackend,
+    NumpyBackend,
+    OpenCVBackend,
+    OpenGLBackend,
+    CPPBackend,
+    CUDABackend,
+]
 
 
 @dataclass

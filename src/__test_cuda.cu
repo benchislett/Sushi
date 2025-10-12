@@ -122,7 +122,7 @@ __global__ void reference_raster_kernel(const Triangle* triangles, int* out_pixe
 //             for (int x = min_x; x <= max_x; ++x) {
 //                 int2 p = {x, y};
 //                 if (edge_function(t.v0, t.v1, p) >= 0 &&
-//                     edge_function(t.v1, t.v2, p) >= 0 && 
+//                     edge_function(t.v1, t.v2, p) >= 0 &&
 //                     edge_function(t.v2, t.v0, p) >= 0) {
 //                     pixel_count++;
 //                 }
@@ -321,7 +321,7 @@ __global__ void fine_raster_smem_kernel(const Triangle *__restrict__ triangles,
         int w0_row = orient2d(partial_tri.v1, partial_tri.v2, p);
         int w1_row = orient2d(partial_tri.v2, partial_tri.v0, p);
         int w2_row = orient2d(partial_tri.v0, partial_tri.v1, p);
-        
+
         int partial_pixels = 0;
         for (int iy = 0; iy < STEP; ++iy) {
             int w0 = w0_row, w1 = w1_row, w2 = w2_row;
@@ -482,7 +482,7 @@ int main() {
         strategy_name = "ShmemAtomicThenCopy";
     #endif
     std::cout << "Reference Kernel Strategy: " << strategy_name << std::endl;
-    
+
     // --- Setup and Initialization ---
     std::vector<Triangle> h_triangles(N);
     std::vector<int> h_ref_counts(N, 0);
@@ -506,7 +506,7 @@ int main() {
     #if defined(USE_SHMEM_ATOMIC_THEN_COPY)
         ref_shmem_size = counts_size;
     #endif
-    
+
     dim3 fine_grid_dim(1);
     dim3 fine_block_dim(256);
 
@@ -517,12 +517,12 @@ int main() {
         CUDA_CHECK(cudaMemcpy(d_triangles, h_triangles.data(), triangles_size, cudaMemcpyHostToDevice));
         CUDA_CHECK(cudaMemset(d_ref_counts, 0, counts_size));
         CUDA_CHECK(cudaMemset(d_fine_counts, 0, counts_size));
-        
+
         reference_raster_kernel<<<ref_grid_dim, ref_block_dim, ref_shmem_size>>>(d_triangles, d_ref_counts);
         fine_raster_kernel<<<fine_grid_dim, fine_block_dim>>>(d_triangles, d_fine_counts);
     }
     CUDA_CHECK(cudaDeviceSynchronize());
-    
+
     // --- Timed Main Run ---
     std::cout << "Executing timed run..." << std::endl;
     generate_random_triangles(h_triangles, rng);
@@ -541,7 +541,7 @@ int main() {
     CUDA_CHECK(cudaEventRecord(stop));
     CUDA_CHECK(cudaEventSynchronize(stop));
     CUDA_CHECK(cudaEventElapsedTime(&ms_ref, start, stop));
-    
+
     // Run Fine Rasterizer Kernel
     CUDA_CHECK(cudaEventRecord(start));
     fine_raster_kernel<<<fine_grid_dim, fine_block_dim>>>(d_triangles, d_fine_counts);
@@ -565,7 +565,7 @@ int main() {
     std::cout << "\n--- Correctness Check ---" << std::endl;
     if (mismatches == 0) std::cout << "SUCCESS: The outputs of both kernels match perfectly." << std::endl;
     else std::cout << "FAILURE: Found " << mismatches << " mismatches out of " << N << " triangles." << std::endl;
-    
+
     // --- Cleanup ---
     CUDA_CHECK(cudaEventDestroy(start));
     CUDA_CHECK(cudaEventDestroy(stop));

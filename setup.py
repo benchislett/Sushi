@@ -52,35 +52,6 @@ class CMakeBuild(build_ext):  # type: ignore
             cwd=self.build_temp,
         )
 
-        # Find the built .so file - CMake puts it in the output directory we specified
-        dest_path = self.get_ext_fullpath(ext.name)
-        dest_dir = os.path.dirname(dest_path)
-
-        # Look for .so files in the output directory (extdir)
-        built_extensions = glob.glob(os.path.join(extdir, f"{ext.name}*.so"))
-
-        # Also check the build temp directory
-        if not built_extensions:
-            built_extensions = glob.glob(
-                os.path.join(self.build_temp, f"{ext.name}*.so")
-            )
-
-        # Also check for files with different naming patterns
-        if not built_extensions:
-            built_extensions = glob.glob(os.path.join(extdir, f"*{ext.name}*.so"))
-
-        if not built_extensions:
-            built_extensions = glob.glob(
-                os.path.join(self.build_temp, f"*{ext.name}*.so")
-            )
-
-        if built_extensions:
-            # Ensure destination directory exists
-            if not os.path.exists(dest_dir):
-                os.makedirs(dest_dir)
-            shutil.copy2(built_extensions[0], dest_path)
-            print(f"Copied {built_extensions[0]} to {dest_path}")
-
 
 # Create the extension
 setup(

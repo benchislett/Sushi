@@ -314,18 +314,3 @@ public:
         }
     }
 };
-
-
-NB_MODULE(sushi_core, m) {
-    m.doc() = "Sushi C++ rasterization backend";
-
-    nb::class_<CPPRasterBackend>(m, "CPPRasterBackend")
-        .def_static("triangle_draw_single_rgba_inplace",
-                   &CPPRasterBackend::triangle_draw_single_rgba_inplace,
-                   "image"_a, "vertices"_a, "color"_a,
-                   "Draw a triangle with RGBA color and alpha blending (in-place)")
-        .def_static("triangle_drawloss_batch_rgba",
-                     &CPPRasterBackend::triangle_drawloss_batch_rgba,
-                     "image"_a, "target_image"_a, "vertices"_a, "colors"_a, "out"_a,
-                     "Draw a batch of triangles with RGBA colors and compute loss deltas");
-}
