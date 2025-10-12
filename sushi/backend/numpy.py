@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, ClassVar, Optional, override
+from typing import Any, ClassVar, Optional, cast, override
 
 import numpy as np
 from numpy.typing import NDArray
@@ -67,12 +67,12 @@ def _points_in_triangle(
     v2 = points - p0
 
     # Scalar dot products
-    dot00 = np.dot(v0, v0)
-    dot01 = np.dot(v0, v1)
-    dot11 = np.dot(v1, v1)
+    dot00 = float(np.dot(v0, v0))
+    dot01 = float(np.dot(v0, v1))
+    dot11 = float(np.dot(v1, v1))
     # Vector dot products
-    dot20 = np.dot(v2, v0)
-    dot21 = np.dot(v2, v1)
+    dot20 = cast(NDArray[np.int64], np.dot(v2, v0))
+    dot21 = cast(NDArray[np.int64], np.dot(v2, v1))
 
     # Calculate the denominator for the barycentric coordinates
     # This is related to the area of the triangle
@@ -105,3 +105,140 @@ def _composit_over(
         The composited color, an array of shape (N,3) with dtype np.uint8.
     """
     return (foreground * alpha + background * (1 - alpha)).astype(np.uint8)
+
+
+class NumpyDrawContext(DrawContext):
+    """A reference drawing context that uses NumPy for rasterization."""
+
+    def __init__(
+        self,
+        *,
+        background_image: NDArray[np.uint8],
+        config: NumpyConfig,
+    ) -> None:
+        check_image_rgb(background_image)
+        self.config = config
+        self._image = background_image.copy()
+        self._pixel_coords = _pixel_array(self._image.shape[:2])
+
+    @override
+    def clone(self) -> "NumpyDrawContext":
+        out_obj = self.__new__(self.__class__)
+        out_obj.config = self.config
+        out_obj._image = self._image.copy()
+        out_obj._pixel_coords = self._pixel_coords.copy()
+        return out_obj
+
+    @override
+    def get_image(self) -> NDArray[np.uint8]:
+        return self._image
+
+    @override
+    def draw_inplace(
+        self,
+        vertices: NDArray[np.int32],
+        color: NDArray[np.uint8],
+    ) -> None:
+        check_triangle_vertices(vertices)
+        check_color_rgba(color)
+
+        inside_mask = _points_in_triangle(self._pixel_coords, vertices)
+
+        if not np.any(inside_mask):
+            return
+
+        rgb_color = color[:3]
+        alpha = color[3] / 255.0
+
+        inside_pixel_coords = self._pixel_coords[inside_mask]
+        ys, xs = inside_pixel_coords[:, 1], inside_pixel_coords[:, 0]
+
+        existing_colors = self._image[ys, xs]
+        new_colors = _composit_over(rgb_color, existing_colors, alpha)
+
+        self._image[ys, xs] = new_colors
+
+
+class NumpyDrawLossContext(DrawLossContext):
+    """A drawloss context that uses the NumpyDrawContext for rasterization."""
+
+    @override
+    def __init__(
+        self,
+        *,
+        background_image: NDArray[np.uint8],
+        target_image: NDArray[np.uint8],
+        config: NumpyConfig,
+        **kwargs: Any,
+    ) -> None:
+        self.draw_context = NumpyDrawContext(
+            background_image=background_image, config=config, **kwargs
+        )
+        check_image_rgb(target_image)
+        if background_image.shape != target_image.shape:
+            raise ValueError(
+                "Background and target images must have the same shape, "
+                f"got {background_image.shape} and {target_image.shape}"
+            )
+        self._target_image = target_image
+        self.config = config
+
+    @override
+    def clone(self) -> "NumpyDrawLossContext":
+        out_obj = self.__new__(self.__class__)
+        out_obj.draw_context = self.draw_context.clone()
+        out_obj._target_image = self._target_image.copy()
+        out_obj.config = self.config
+        return out_obj
+
+    @override
+    def drawloss(
+        self, vertices: NDArray[np.int32], colors: NDArray[np.uint8]
+    ) -> NDArray[np.int64]:
+        return calculate_drawloss_using_draw_context(
+            context=self.draw_context,
+            target_image=self._target_image,
+            vertices=vertices,
+            colors=colors,
+        )
+
+
+class NumpyBackend(Backend):
+    name: ClassVar[str] = "numpy"
+
+    @classmethod
+    @override
+    def create_draw_context(
+        cls: type["NumpyBackend"],
+        *,
+        background_image: NDArray[np.uint8],
+        config: Optional[Config] = None,
+    ) -> DrawContext:
+        if config is None:
+            config = NumpyConfig()
+        if not isinstance(config, NumpyConfig):
+            raise TypeError(
+                f"Config must be an instance of NumpyConfig, got {type(config)}"
+            )
+        return NumpyDrawContext(background_image=background_image, config=config)
+
+    @classmethod
+    @override
+    def create_drawloss_context(
+        cls: type["NumpyBackend"],
+        *,
+        background_image: NDArray[np.uint8],
+        target_image: NDArray[np.uint8],
+        config: Optional[Config] = None,
+    ) -> DrawLossContext:
+        if config is None:
+            config = NumpyConfig()
+        if not isinstance(config, NumpyConfig):
+            raise TypeError(
+                f"Config must be an instance of NumpyConfig, got {type(config)}"
+            )
+        return NumpyDrawLossContext(
+            background_image=background_image,
+            target_image=target_image,
+            config=config,
+        )

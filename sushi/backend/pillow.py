@@ -23,7 +23,7 @@ class PillowConfig(Config):
 
 
 class PillowDrawContext(DrawContext):
-    """A drawing context that uses the ImageDraw module from the Pillow library."""
+    """A reference drawing context that uses ImageDraw from the Pillow library."""
 
     def __init__(
         self,

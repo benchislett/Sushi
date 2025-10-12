@@ -6,29 +6,15 @@ import pytest
 from numpy.typing import NDArray
 from PIL import Image
 
-# AllBackends = [
-#     PillowRasterBackend,
-#     OpenCVRasterBackend,
-#     NumpyRasterBackend,
-#     OpenGLRasterBackend,
-# ]
-# try:
-#     from sushi.backend_cpp import CPPRasterBackend
-#     HAS_CPP = True
-#     AllBackends.append(CPPRasterBackend)
-# except ImportError:
-#     HAS_CPP = False
-#     raise
+from sushi.backend.cpp import CPPBackend
+from sushi.backend.numpy import NumpyBackend
+from sushi.backend.opencv import OpenCVBackend
+from sushi.backend.opengl import OpenGLBackend
 from sushi.backend.pillow import PillowBackend
 from sushi.interface import Backend
-
-# from sushi.backend_numpy import NumpyRasterBackend
-# from sushi.backend_opencv import OpenCVRasterBackend
-# from sushi.backend_opengl import OpenGLRasterBackend
-# from sushi.backend_pillow import PillowRasterBackend
 from sushi.utils import np_image_loss
 
-AllBackends = [PillowBackend]
+AllBackends = [PillowBackend, NumpyBackend, OpenCVBackend, OpenGLBackend, CPPBackend]
 
 
 @dataclass
