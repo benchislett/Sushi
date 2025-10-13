@@ -1,5 +1,6 @@
-add_library(sushi_cpp STATIC
+nanobind_add_module(sushi_cpp STATIC
   src/rasterizer.cpp
+  include/sushi/rasterizer.h
 )
 
 target_link_libraries(sushi_cpp PUBLIC sushi_common)

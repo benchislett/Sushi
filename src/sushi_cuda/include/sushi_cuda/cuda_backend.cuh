@@ -4,6 +4,8 @@
 
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
+#include <nanobind/stl/vector.h>
+
 #include <cstdint>
 
 namespace nb = nanobind;
@@ -47,6 +49,7 @@ __global__ void drawloss_kernel(
     // Dummy loss calculation
     losses[idx] = static_cast<int64_t>(v0_x * r + v0_y * g);
 }
+*/
 
 void launch_drawloss_kernel(
     const ImageRGB &background,
@@ -54,16 +57,7 @@ void launch_drawloss_kernel(
     const int32_t *vertices,
     const uint8_t *colors,
     int64_t *losses,
-    int num_triangles)
-{
-    const int threads_per_block = 256;
-    const int blocks_per_grid = (num_triangles + threads_per_block - 1) / threads_per_block;
-
-    drawloss_kernel<<<blocks_per_grid, threads_per_block>>>(
-        background, target, vertices, colors, losses, num_triangles);
-}
-
-*/
+    int num_triangles);
 
 class CUDABackend
 {
@@ -154,7 +148,7 @@ public:
         cudaMemcpy(d_colors, colors.data(), colors.nbytes(), cudaMemcpyHostToDevice);
 
         // --- Launch CUDA Kernel ---
-        // launch_drawloss_kernel(d_background_image, d_target_image, d_vertices, d_colors, d_losses, num_triangles);
+        launch_drawloss_kernel(d_background_image, d_target_image, d_vertices, d_colors, d_losses, num_triangles);
 
         // --- Copy results back to host ---
         cudaMemcpy(out_losses.data(), d_losses, out_losses.nbytes(), cudaMemcpyDeviceToHost);

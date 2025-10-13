@@ -2,9 +2,10 @@ cmake_minimum_required(VERSION 3.20)
 
 project(sushi LANGUAGES CXX CUDA)
 
-set(CMAKE_CXX_COMPILER g++-12)
-set(CMAKE_CUDA_STANDARD 14)
+set(CMAKE_CUDA_STANDARD 17)
 set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+
+find_package(CUDAToolkit)
 
 # Find Python and nanobind
 find_package(Python 3.8 REQUIRED COMPONENTS Interpreter Development.Module)
