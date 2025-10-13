@@ -149,3 +149,8 @@ class CPPBackend(Backend):
             target_image=target_image,
             config=config,
         )
+
+    @classmethod
+    @override
+    def is_supported(cls: type["CPPBackend"]) -> bool:
+        return True

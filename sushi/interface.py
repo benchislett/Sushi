@@ -281,3 +281,12 @@ class Backend(ABC):
             A draw loss context for this backend.
         """
         pass
+
+    @classmethod
+    def is_supported(cls: type["Backend"]) -> bool:
+        """Check if the backend is supported on the current system.
+
+        Returns:
+            True if the backend is supported, False otherwise.
+        """
+        return True

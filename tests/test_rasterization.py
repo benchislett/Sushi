@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import pytest
@@ -23,6 +24,29 @@ AllBackends = [
     CPPBackend,
     CUDABackend,
 ]
+
+
+def maybe_skip_backend(
+    backend: type[Backend], mode: Literal["draw", "drawloss"]
+) -> None:
+    print(backend)
+    if not backend.is_supported():
+        pytest.skip(f"Backend {backend.name} is not supported on this system.")
+    if mode == "drawloss":
+        try:
+            _ = backend.create_drawloss_context(
+                background_image=np.zeros((10, 10, 3), dtype=np.uint8),
+                target_image=np.zeros((10, 10, 3), dtype=np.uint8),
+            )
+        except NotImplementedError:
+            pytest.skip(f"Backend {backend.name} does not support drawloss.")
+    elif mode == "draw":
+        try:
+            _ = backend.create_draw_context(
+                background_image=np.zeros((10, 10, 3), dtype=np.uint8)
+            )
+        except NotImplementedError:
+            pytest.skip(f"Backend {backend.name} does not support draw.")
 
 
 @dataclass
@@ -78,6 +102,8 @@ def test_draw_single_match_reference(
     comparing it to a pre-saved file. This verifies the drawing logic
     and coordinate orientation.
     """
+    maybe_skip_backend(raster_backend, "draw")
+
     MATCH_PIXELS_THRESHOLD = 0.98  # 98% of pixels must match
     MATCH_PIXEL_VALUE_TOLERANCE = 2  # Allow small color differences due to rounding
 
@@ -138,6 +164,7 @@ def test_count_pixels_single_match_reference(
     Tests that the pixel counting function produces a count close to the
     expected value. The expected value is derived from the saved reference image.
     """
+    maybe_skip_backend(raster_backend, "draw")
     MATCH_RELATIVE_TOLERANCE = 0.025  # Allow 2.5% tolerance
 
     vertices = setup_data.vertices
@@ -169,6 +196,8 @@ def test_drawloss_single(
     to a manually calculated loss change. It also verifies that providing
     the optional `base_loss` gives the same result.
     """
+    maybe_skip_backend(raster_backend, "drawloss")
+
     MATCH_RELATIVE_TOLERANCE = 0.025  # Allow 2.5% tolerance
     image_np = setup_data.image_np
     height = setup_data.height

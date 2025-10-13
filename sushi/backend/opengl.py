@@ -1,3 +1,4 @@
+import functools
 from dataclasses import dataclass
 from typing import Any, ClassVar, Optional, cast, override
 
@@ -198,6 +199,16 @@ class OpenGLDrawLossContext(DrawLossContext):
         )
 
 
+@functools.lru_cache(maxsize=1)
+def is_opengl_supported() -> bool:
+    try:
+        ctx = moderngl.create_standalone_context()
+        ctx.release()
+        return True
+    except Exception:
+        return False
+
+
 class OpenGLBackend(Backend):
     name: ClassVar[str] = "opengl"
 
@@ -237,3 +248,8 @@ class OpenGLBackend(Backend):
             target_image=target_image,
             config=config,
         )
+
+    @classmethod
+    @override
+    def is_supported(cls: type["OpenGLBackend"]) -> bool:
+        return is_opengl_supported()

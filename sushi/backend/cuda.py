@@ -10,7 +10,6 @@ from sushi.interface import (
     DrawLossContext,
 )
 from sushi.utils import (
-    check_color_rgba,
     check_image_rgb,
     check_triangle_vertices,
 )
@@ -131,3 +130,15 @@ class CUDABackend(Backend):
             target_image=target_image,
             config=config,
         )
+
+    @classmethod
+    @override
+    def is_supported(cls: type["CUDABackend"]) -> bool:
+        try:
+            _ = cls.create_drawloss_context(
+                background_image=np.zeros((10, 10, 3), dtype=np.uint8),
+                target_image=np.zeros((10, 10, 3), dtype=np.uint8),
+            )
+            return True
+        except Exception:
+            return False
