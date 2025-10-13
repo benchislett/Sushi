@@ -32,38 +32,3 @@ if(SUSHI_BUILD_CUDA)
 endif()
 
 add_subdirectory(sushi_bindings)
-
-
-
-
-
-
-
-# # We are now ready to compile the actual extension module
-# nanobind_add_module(
-#   # Name of the extension
-#   sushi_core
-
-#   # Optimize for performance instead of size
-#   NOMINSIZE
-
-#   # Target the stable ABI for Python 3.12+, which reduces
-#   # the number of binary wheels that must be built. This
-#   # does nothing on older Python versions
-#   STABLE_ABI
-
-#   # Source code goes here
-#   sushi_core_main.cpp
-# )
-
-# # Ensure proper include directories
-# target_include_directories(sushi_core PRIVATE ${nanobind_INCLUDE_DIRS})
-
-# # Install directive for scikit-build-core
-# install(TARGETS sushi_core LIBRARY DESTINATION sushi)
-
-# # set max optimizations for nvcc
-#
-
-# add_executable(test_sushi_core test_cuda.cu)
-# set_property(TARGET test_sushi_core PROPERTY CUDA_ARCHITECTURES native)
