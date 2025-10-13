@@ -1,6 +1,6 @@
 nanobind_add_module(sushi_core
   NOMINSIZE
-  STABLE_ABI
+  LTO
   bindings.cpp
 )
 

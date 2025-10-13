@@ -1,4 +1,4 @@
-nanobind_add_module(sushi_cpp STATIC
+nanobind_add_module(sushi_cpp STATIC NOMINSIZE LTO
   src/rasterizer.cpp
   include/sushi/rasterizer.h
 )
