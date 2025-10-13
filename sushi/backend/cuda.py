@@ -133,7 +133,7 @@ class CUDABackend(Backend):
 
     @classmethod
     @override
-    def is_supported(cls: type["CUDABackend"]) -> bool:
+    def is_available(cls: type["CUDABackend"]) -> bool:
         try:
             _ = cls.create_drawloss_context(
                 background_image=np.zeros((10, 10, 3), dtype=np.uint8),

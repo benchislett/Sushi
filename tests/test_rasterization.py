@@ -30,23 +30,17 @@ def maybe_skip_backend(
     backend: type[Backend], mode: Literal["draw", "drawloss"]
 ) -> None:
     print(backend)
-    if not backend.is_supported():
-        pytest.skip(f"Backend {backend.name} is not supported on this system.")
-    if mode == "drawloss":
-        try:
-            _ = backend.create_drawloss_context(
-                background_image=np.zeros((10, 10, 3), dtype=np.uint8),
-                target_image=np.zeros((10, 10, 3), dtype=np.uint8),
+    if not backend.is_available():
+        pytest.skip(f"Backend {backend.name} is not available on this system.")
+    else:
+        res, err = backend.is_mode_supported(mode)
+        if res == 0:
+            pytest.skip(f"Backend {backend.name} does not support mode '{mode}'.")
+        elif res == -1:
+            pytest.skip(
+                f"Backend {backend.name} cannot be tested "
+                f"for mode '{mode}' due to an error: {err}"
             )
-        except NotImplementedError:
-            pytest.skip(f"Backend {backend.name} does not support drawloss.")
-    elif mode == "draw":
-        try:
-            _ = backend.create_draw_context(
-                background_image=np.zeros((10, 10, 3), dtype=np.uint8)
-            )
-        except NotImplementedError:
-            pytest.skip(f"Backend {backend.name} does not support draw.")
 
 
 @dataclass
@@ -102,12 +96,21 @@ def test_draw_single_match_reference(
     comparing it to a pre-saved file. This verifies the drawing logic
     and coordinate orientation.
     """
+    backend_name = raster_backend.name
+
+    failed_image_path = Path(__file__).parent / f"data/failed_{backend_name}_draw.png"
+    success_image_path = Path(__file__).parent / f"data/success_{backend_name}_draw.png"
+
+    # Perform cleanup before skipping, so we don't leave old files around
+    if success_image_path.exists():
+        success_image_path.unlink()
+    if failed_image_path.exists():
+        failed_image_path.unlink()
+
     maybe_skip_backend(raster_backend, "draw")
 
     MATCH_PIXELS_THRESHOLD = 0.98  # 98% of pixels must match
     MATCH_PIXEL_VALUE_TOLERANCE = 2  # Allow small color differences due to rounding
-
-    backend_name = raster_backend.name
 
     image_np = setup_data.image_np
     vertices = setup_data.vertices
@@ -117,14 +120,6 @@ def test_draw_single_match_reference(
     context = raster_backend.create_draw_context(background_image=image_np)
 
     drawn_image_np = context.draw(vertices, color)
-
-    failed_image_path = Path(__file__).parent / f"data/failed_{backend_name}_draw.png"
-    success_image_path = Path(__file__).parent / f"data/success_{backend_name}_draw.png"
-
-    if success_image_path.exists():
-        success_image_path.unlink()
-    if failed_image_path.exists():
-        failed_image_path.unlink()
 
     assert drawn_image_np.shape == expected_image_np.shape
     num_pixels = drawn_image_np.shape[0] * drawn_image_np.shape[1]

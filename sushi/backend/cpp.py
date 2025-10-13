@@ -152,5 +152,5 @@ class CPPBackend(Backend):
 
     @classmethod
     @override
-    def is_supported(cls: type["CPPBackend"]) -> bool:
+    def is_available(cls: type["CPPBackend"]) -> bool:
         return True

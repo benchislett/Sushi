@@ -200,7 +200,7 @@ class OpenGLDrawLossContext(DrawLossContext):
 
 
 @functools.lru_cache(maxsize=1)
-def is_opengl_supported() -> bool:
+def is_opengl_available() -> bool:
     try:
         ctx = moderngl.create_standalone_context()
         ctx.release()
@@ -251,5 +251,5 @@ class OpenGLBackend(Backend):
 
     @classmethod
     @override
-    def is_supported(cls: type["OpenGLBackend"]) -> bool:
-        return is_opengl_supported()
+    def is_available(cls: type["OpenGLBackend"]) -> bool:
+        return is_opengl_available()
