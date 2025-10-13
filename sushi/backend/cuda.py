@@ -63,17 +63,12 @@ class CUDADrawLossContext(DrawLossContext):
 
     @override
     def clone(self) -> "CUDADrawLossContext":
-        # To clone, we need to re-instantiate the C++ object with the same
-        # initial data, as the internal state (GPU pointers) cannot be
-        # directly copied from Python.
-        # This assumes the original images are accessible or stored here if needed.
-        # For this template, we show the principle but note that you might
-        # need to store the initial numpy arrays if you want a true deep clone.
-        # A simple re-creation from scratch is often sufficient.
-        raise NotImplementedError(
-            "Cloning requires re-initialization of the CUDA backend. "
-            "Consider storing initial images if deep cloning is needed."
-        )
+        """Creates a deep copy of the current context, including all GPU data."""
+        # create a __new__ instance without calling __init__
+        new_context = self.__class__.__new__(self.__class__)
+        new_context.config = self.config
+        new_context._core_backend = self._core_backend.clone()
+        return new_context
 
     @override
     def drawloss(

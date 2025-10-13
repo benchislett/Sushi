@@ -41,5 +41,7 @@ NB_MODULE(sushi_core, m) {
              nb::arg("vertices"),
              nb::arg("colors"),
              nb::arg("out_losses"),
-             "Calculates the loss for a batch of triangles against the target image.");
+             "Calculates the loss for a batch of triangles against the target image.")
+        .def("clone", &CUDABackend::clone,
+             "Creates a deep copy of the current CUDABackend instance.");
 }

@@ -81,6 +81,9 @@ public:
         }
     }
 
+    CUDABackend(ImageRGB background_image, ImageRGB target_image)
+        : d_background_image(background_image), d_target_image(target_image) {}
+
     ~CUDABackend()
     {
         cudaFree(d_background_image.data);
@@ -123,6 +126,27 @@ public:
         cudaFree(d_vertices);
         cudaFree(d_colors);
         cudaFree(d_losses);
+    }
+
+    CUDABackend clone() const
+    {
+        ImageRGB d_bg_copy;
+        ImageRGB d_target_copy;
+
+        size_t bg_size = d_background_image.height * d_background_image.width * 3 * sizeof(uint8_t);
+        size_t target_size = d_target_image.height * d_target_image.width * 3 * sizeof(uint8_t);
+
+        cudaMalloc(&d_bg_copy.data, bg_size);
+        cudaMemcpy(d_bg_copy.data, d_background_image.data, bg_size, cudaMemcpyDeviceToDevice);
+        d_bg_copy.height = d_background_image.height;
+        d_bg_copy.width = d_background_image.width;
+
+        cudaMalloc(&d_target_copy.data, target_size);
+        cudaMemcpy(d_target_copy.data, d_target_image.data, target_size, cudaMemcpyDeviceToDevice);
+        d_target_copy.height = d_target_image.height;
+        d_target_copy.width = d_target_image.width;
+
+        return CUDABackend(d_bg_copy, d_target_copy);
     }
 
 private:

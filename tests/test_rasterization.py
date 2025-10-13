@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Optional
 
 import numpy as np
 import pytest
@@ -27,12 +27,11 @@ AllBackends = [
 
 
 def maybe_skip_backend(
-    backend: type[Backend], mode: Literal["draw", "drawloss"]
+    backend: type[Backend], mode: Optional[Literal["draw", "drawloss"]] = None
 ) -> None:
-    print(backend)
     if not backend.is_available():
         pytest.skip(f"Backend {backend.name} is not available on this system.")
-    else:
+    elif mode is not None:
         res, err = backend.is_mode_supported(mode)
         if res == 0:
             pytest.skip(f"Backend {backend.name} does not support mode '{mode}'.")
@@ -85,6 +84,47 @@ def setup_data() -> TestImageData:
         image_np=image_np,
         expected_image_np=expected_image_np,
     )
+
+
+@pytest.mark.parametrize("raster_backend", AllBackends)
+def test_can_clone_drawloss_context(raster_backend: type["Backend"]) -> None:
+    """
+    Tests that the backend's drawloss context can be cloned without errors.
+    """
+    maybe_skip_backend(raster_backend, "drawloss")
+    context = raster_backend.create_drawloss_context(
+        background_image=np.zeros((10, 10, 3), dtype=np.uint8),
+        target_image=np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+
+    cloned_context = context.clone()
+    assert cloned_context is not context, "Cloned context is the same instance."
+    assert isinstance(
+        cloned_context, type(context)
+    ), "Cloned context is of incorrect type."
+
+
+@pytest.mark.parametrize("raster_backend", AllBackends)
+def test_can_clone_draw_context(raster_backend: type["Backend"]) -> None:
+    """
+    Tests that the backend's draw context can be cloned without errors.
+    """
+    maybe_skip_backend(raster_backend, "draw")
+    context = raster_backend.create_draw_context(
+        background_image=np.zeros((10, 10, 3), dtype=np.uint8)
+    )
+
+    cloned_context = context.clone()
+    assert cloned_context is not context, "Cloned context is the same instance."
+    assert isinstance(
+        cloned_context, type(context)
+    ), "Cloned context is of incorrect type."
+
+    cloned_context = context.clone()
+    assert cloned_context is not context, "Cloned context is the same instance."
+    assert isinstance(
+        cloned_context, type(context)
+    ), "Cloned context is of incorrect type."
 
 
 @pytest.mark.parametrize("raster_backend", AllBackends)
