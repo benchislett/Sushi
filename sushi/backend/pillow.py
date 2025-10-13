@@ -1,6 +1,4 @@
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, ClassVar, Optional, Union, override
+from typing import Any, ClassVar, Optional, override
 
 import numpy as np
 from numpy.typing import NDArray
@@ -9,18 +7,14 @@ from PIL import Image, ImageDraw
 from sushi.interface import (
     Backend,
     Config,
-    Context,
     DrawContext,
     DrawLossContext,
     calculate_drawloss_using_draw_context,
 )
 from sushi.utils import (
-    check_color_rgb,
     check_color_rgba,
     check_image_rgb,
-    check_image_shape,
     check_triangle_vertices,
-    np_image_loss,
 )
 
 
@@ -29,7 +23,7 @@ class PillowConfig(Config):
 
 
 class PillowDrawContext(DrawContext):
-    """A drawing context that uses the ImageDraw module from the Pillow library."""
+    """A reference drawing context that uses ImageDraw from the Pillow library."""
 
     def __init__(
         self,

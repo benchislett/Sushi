@@ -1,16 +1,16 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, ClassVar, Generic, Optional, Self, TypeVar, Union, override
+from typing import (
+    Any,
+    ClassVar,
+    Literal,
+    Optional,
+    Self,
+)
 
 import numpy as np
 from numpy.typing import NDArray
 
 from sushi.utils import (
-    check_color_rgb,
-    check_color_rgba,
-    check_image_rgb,
-    check_image_shape,
-    check_triangle_vertices,
     np_image_loss,
 )
 
@@ -281,3 +281,54 @@ class Backend(ABC):
             A draw loss context for this backend.
         """
         pass
+
+    @classmethod
+    def is_available(cls: type["Backend"]) -> bool:
+        """Check if the backend is available on the current system."""
+        return True
+
+    @classmethod
+    def is_mode_supported(
+        cls: type["Backend"], mode: Literal["draw", "drawloss"]
+    ) -> tuple[int, Optional[str]]:
+        """Check if the backend supports the given mode.
+
+        Args:
+            mode: The mode to check, either "draw" or "drawloss".
+
+        Returns:
+            A tuple (support_level, error_message) where:
+
+            - support_level is:
+                - 1 if the mode is supported,
+                - 0 if the mode is not supported,
+                - -1 if an error occurred while checking. This can happen if the
+                    backend is partially installed, misconfigured, or unavailable.
+            - error_message is None if support_level is 1 or 0, or a string
+              describing the error if support_level is -1.
+        """
+        if mode == "draw":
+            try:
+                _ = cls.create_draw_context(
+                    background_image=np.zeros((10, 10, 3), dtype=np.uint8)
+                )
+                return 1, None
+            except NotImplementedError:
+                return 0, None
+            except Exception as e:
+                return -1, str(e)
+        elif mode == "drawloss":
+            try:
+                _ = cls.create_drawloss_context(
+                    background_image=np.zeros((10, 10, 3), dtype=np.uint8),
+                    target_image=np.zeros((10, 10, 3), dtype=np.uint8),
+                )
+                return 1, None
+            except NotImplementedError:
+                return 0, None
+            except Exception as e:
+                return -1, str(e)
+        else:
+            raise ValueError(
+                f"Unknown mode '{mode}'. Supported modes are 'draw' and 'drawloss'."
+            )

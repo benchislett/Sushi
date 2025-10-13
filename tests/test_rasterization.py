@@ -1,34 +1,45 @@
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, Optional
 
 import numpy as np
 import pytest
 from numpy.typing import NDArray
 from PIL import Image
 
-# AllBackends = [
-#     PillowRasterBackend,
-#     OpenCVRasterBackend,
-#     NumpyRasterBackend,
-#     OpenGLRasterBackend,
-# ]
-# try:
-#     from sushi.backend_cpp import CPPRasterBackend
-#     HAS_CPP = True
-#     AllBackends.append(CPPRasterBackend)
-# except ImportError:
-#     HAS_CPP = False
-#     raise
+from sushi.backend.cpp import CPPBackend
+from sushi.backend.cuda import CUDABackend
+from sushi.backend.numpy import NumpyBackend
+from sushi.backend.opencv import OpenCVBackend
+from sushi.backend.opengl import OpenGLBackend
 from sushi.backend.pillow import PillowBackend
 from sushi.interface import Backend
-
-# from sushi.backend_numpy import NumpyRasterBackend
-# from sushi.backend_opencv import OpenCVRasterBackend
-# from sushi.backend_opengl import OpenGLRasterBackend
-# from sushi.backend_pillow import PillowRasterBackend
 from sushi.utils import np_image_loss
 
-AllBackends = [PillowBackend]
+AllBackends = [
+    PillowBackend,
+    NumpyBackend,
+    OpenCVBackend,
+    OpenGLBackend,
+    CPPBackend,
+    CUDABackend,
+]
+
+
+def maybe_skip_backend(
+    backend: type[Backend], mode: Optional[Literal["draw", "drawloss"]] = None
+) -> None:
+    if not backend.is_available():
+        pytest.skip(f"Backend {backend.name} is not available on this system.")
+    elif mode is not None:
+        res, err = backend.is_mode_supported(mode)
+        if res == 0:
+            pytest.skip(f"Backend {backend.name} does not support mode '{mode}'.")
+        elif res == -1:
+            pytest.skip(
+                f"Backend {backend.name} cannot be tested "
+                f"for mode '{mode}' due to an error: {err}"
+            )
 
 
 @dataclass
@@ -76,6 +87,47 @@ def setup_data() -> TestImageData:
 
 
 @pytest.mark.parametrize("raster_backend", AllBackends)
+def test_can_clone_drawloss_context(raster_backend: type["Backend"]) -> None:
+    """
+    Tests that the backend's drawloss context can be cloned without errors.
+    """
+    maybe_skip_backend(raster_backend, "drawloss")
+    context = raster_backend.create_drawloss_context(
+        background_image=np.zeros((10, 10, 3), dtype=np.uint8),
+        target_image=np.zeros((10, 10, 3), dtype=np.uint8),
+    )
+
+    cloned_context = context.clone()
+    assert cloned_context is not context, "Cloned context is the same instance."
+    assert isinstance(
+        cloned_context, type(context)
+    ), "Cloned context is of incorrect type."
+
+
+@pytest.mark.parametrize("raster_backend", AllBackends)
+def test_can_clone_draw_context(raster_backend: type["Backend"]) -> None:
+    """
+    Tests that the backend's draw context can be cloned without errors.
+    """
+    maybe_skip_backend(raster_backend, "draw")
+    context = raster_backend.create_draw_context(
+        background_image=np.zeros((10, 10, 3), dtype=np.uint8)
+    )
+
+    cloned_context = context.clone()
+    assert cloned_context is not context, "Cloned context is the same instance."
+    assert isinstance(
+        cloned_context, type(context)
+    ), "Cloned context is of incorrect type."
+
+    cloned_context = context.clone()
+    assert cloned_context is not context, "Cloned context is the same instance."
+    assert isinstance(
+        cloned_context, type(context)
+    ), "Cloned context is of incorrect type."
+
+
+@pytest.mark.parametrize("raster_backend", AllBackends)
 def test_draw_single_match_reference(
     setup_data: TestImageData, raster_backend: type["Backend"]
 ) -> None:
@@ -84,10 +136,21 @@ def test_draw_single_match_reference(
     comparing it to a pre-saved file. This verifies the drawing logic
     and coordinate orientation.
     """
+    backend_name = raster_backend.name
+
+    failed_image_path = Path(__file__).parent / f"data/failed_{backend_name}_draw.png"
+    success_image_path = Path(__file__).parent / f"data/success_{backend_name}_draw.png"
+
+    # Perform cleanup before skipping, so we don't leave old files around
+    if success_image_path.exists():
+        success_image_path.unlink()
+    if failed_image_path.exists():
+        failed_image_path.unlink()
+
+    maybe_skip_backend(raster_backend, "draw")
+
     MATCH_PIXELS_THRESHOLD = 0.98  # 98% of pixels must match
     MATCH_PIXEL_VALUE_TOLERANCE = 2  # Allow small color differences due to rounding
-
-    backend_name = raster_backend.name
 
     image_np = setup_data.image_np
     vertices = setup_data.vertices
@@ -97,14 +160,6 @@ def test_draw_single_match_reference(
     context = raster_backend.create_draw_context(background_image=image_np)
 
     drawn_image_np = context.draw(vertices, color)
-
-    failed_image_path = Path(__file__).parent / f"data/failed_{backend_name}_draw.png"
-    success_image_path = Path(__file__).parent / f"data/success_{backend_name}_draw.png"
-
-    if success_image_path.exists():
-        success_image_path.unlink()
-    if failed_image_path.exists():
-        failed_image_path.unlink()
 
     assert drawn_image_np.shape == expected_image_np.shape
     num_pixels = drawn_image_np.shape[0] * drawn_image_np.shape[1]
@@ -144,6 +199,7 @@ def test_count_pixels_single_match_reference(
     Tests that the pixel counting function produces a count close to the
     expected value. The expected value is derived from the saved reference image.
     """
+    maybe_skip_backend(raster_backend, "draw")
     MATCH_RELATIVE_TOLERANCE = 0.025  # Allow 2.5% tolerance
 
     vertices = setup_data.vertices
@@ -175,6 +231,8 @@ def test_drawloss_single(
     to a manually calculated loss change. It also verifies that providing
     the optional `base_loss` gives the same result.
     """
+    maybe_skip_backend(raster_backend, "drawloss")
+
     MATCH_RELATIVE_TOLERANCE = 0.025  # Allow 2.5% tolerance
     image_np = setup_data.image_np
     height = setup_data.height

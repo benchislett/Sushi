@@ -1,44 +1,34 @@
-cmake_minimum_required(VERSION 3.20...3.28)
+cmake_minimum_required(VERSION 3.20)
 
-project(sushi_core)
+project(sushi LANGUAGES CXX CUDA)
 
-# Enable CUDA
-# enable_language(CUDA)
-# set(CMAKE_CUDA_STANDARD 14)
-# set(CMAKE_CUDA_STANDARD_REQUIRED ON)
+set(CMAKE_CUDA_STANDARD 17)
+set(CMAKE_CUDA_STANDARD_REQUIRED ON)
 
-# Try to import all Python components potentially needed by nanobind
-find_package(Python 3.8
-  REQUIRED COMPONENTS Interpreter Development.Module
-  OPTIONAL_COMPONENTS Development.SABIModule)
+find_package(CUDAToolkit)
 
-# Detect the installed nanobind package and import it into CMake
+# Find Python and nanobind
+find_package(Python 3.8 REQUIRED COMPONENTS Interpreter Development.Module)
 execute_process(
-    COMMAND "${Python_EXECUTABLE}" -m nanobind --cmake_dir
+    COMMAND "${PYTHON_EXECUTABLE}" -m nanobind --cmake_dir
     OUTPUT_STRIP_TRAILING_WHITESPACE OUTPUT_VARIABLE nanobind_ROOT)
 list(APPEND CMAKE_PREFIX_PATH "${nanobind_ROOT}")
-# Import nanobind through CMake's find_package mechanism
 find_package(nanobind CONFIG REQUIRED)
 
-# We are now ready to compile the actual extension module
-nanobind_add_module(
-  # Name of the extension
-  sushi_core
+# Build options
+option(SUSHI_BUILD_CUDA "Enable CUDA support" ON)
 
-  # Optimize for performance instead of size
-  NOMINSIZE
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -march=native -ffast-math")
+set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} -O3 --use_fast_math")
 
-  # Target the stable ABI for Python 3.12+, which reduces
-  # the number of binary wheels that must be built. This
-  # does nothing on older Python versions
-  STABLE_ABI
+add_subdirectory(sushi_common)
 
-  # Source code goes here
-  sushi_core.cpp
-)
+add_subdirectory(sushi_cpp)
 
-# Ensure proper include directories
-target_include_directories(sushi_core PRIVATE ${nanobind_INCLUDE_DIRS})
+if(SUSHI_BUILD_CUDA)
+  add_subdirectory(sushi_cuda)
+endif()
 
-# Install directive for scikit-build-core
-install(TARGETS sushi_core LIBRARY DESTINATION sushi)
+add_subdirectory(sushi_bindings)
