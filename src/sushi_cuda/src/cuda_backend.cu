@@ -8,7 +8,7 @@ __host__ __device__ int32_t edge_function(
     return (cx - ax) * (by - ay) - (cy - ay) * (bx - ax);
 }
 
-__host__ __device__ void composit_over(
+__host__ __device__ void composit_over_reference(
     uint8_t *out_r, uint8_t *out_g, uint8_t *out_b,
     uint8_t fg_r, uint8_t fg_g, uint8_t fg_b, uint8_t fg_a,
     uint8_t bg_r, uint8_t bg_g, uint8_t bg_b)
@@ -17,19 +17,26 @@ __host__ __device__ void composit_over(
     *out_r = static_cast<uint8_t>(fg_r * alpha + bg_r * (1.0f - alpha));
     *out_g = static_cast<uint8_t>(fg_g * alpha + bg_g * (1.0f - alpha));
     *out_b = static_cast<uint8_t>(fg_b * alpha + bg_b * (1.0f - alpha));
-    // uint8_t alpha = fg_a + ((bg_r | bg_g | bg_b) != 0 ? (255 - fg_a) : 0);
-    // if (alpha == 0)
-    // {
-    //     *out_r = 0;
-    //     *out_g = 0;
-    //     *out_b = 0;
-    // }
-    // else
-    // {
-    //     *out_r = (fg_r * fg_a + bg_r * (255 - fg_a)) / alpha;
-    //     *out_g = (fg_g * fg_a + bg_g * (255 - fg_a)) / alpha;
-    //     *out_b = (fg_b * fg_a + bg_b * (255 - fg_a)) / alpha;
-    // }
+}
+
+__host__ __device__ void composit_over(
+    uint8_t *out_r, uint8_t *out_g, uint8_t *out_b,
+    uint8_t fg_r, uint8_t fg_g, uint8_t fg_b, uint8_t fg_a,
+    uint8_t bg_r, uint8_t bg_g, uint8_t bg_b)
+{
+    uint8_t alpha = fg_a + ((bg_r | bg_g | bg_b) != 0 ? (255 - fg_a) : 0);
+    if (alpha == 0)
+    {
+        *out_r = 0;
+        *out_g = 0;
+        *out_b = 0;
+    }
+    else
+    {
+        *out_r = (fg_r * fg_a + bg_r * (255 - fg_a)) / alpha;
+        *out_g = (fg_g * fg_a + bg_g * (255 - fg_a)) / alpha;
+        *out_b = (fg_b * fg_a + bg_b * (255 - fg_a)) / alpha;
+    }
 }
 
 __global__ void drawloss_kernel(
