@@ -17,40 +17,6 @@ struct ImageRGB
     int height = 0;
 };
 
-/*
-// --- CUDA Kernel ---
-// This is a placeholder kernel. You'll replace this with your actual
-// rasterization and loss calculation logic.
-__global__ void drawloss_kernel(
-    const ImageRGB background,
-    const ImageRGB target,
-    const int32_t *vertices,
-    const uint8_t *colors,
-    int64_t *losses,
-    int num_triangles)
-{
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= num_triangles)
-    {
-        return;
-    }
-
-    // TODO: Implement your triangle rasterization and loss calculation logic here.
-    // This example just calculates a dummy loss value.
-
-    // Example: Read the first vertex of the triangle
-    int32_t v0_x = vertices[idx * 6 + 0];
-    int32_t v0_y = vertices[idx * 6 + 1];
-
-    // Example: Read the color for this triangle
-    uint8_t r = colors[idx * 4 + 0];
-    uint8_t g = colors[idx * 4 + 1];
-
-    // Dummy loss calculation
-    losses[idx] = static_cast<int64_t>(v0_x * r + v0_y * g);
-}
-*/
-
 void launch_drawloss_kernel(
     const ImageRGB &background,
     const ImageRGB &target,
