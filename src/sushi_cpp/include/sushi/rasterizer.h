@@ -12,6 +12,14 @@
 namespace nb = nanobind;
 using namespace nb::literals;
 
+static int32_t edge_function(
+    const int32_t ax, const int32_t ay,
+    const int32_t bx, const int32_t by,
+    const int32_t cx, const int32_t cy)
+{
+    return (cx - ax) * (by - ay) - (cy - ay) * (bx - ax);
+}
+
 class CPPRasterBackend {
 public:
     // Triangle rasterization with RGBA color and alpha blending
@@ -156,7 +164,8 @@ public:
         nb::ndarray<nb::numpy, uint8_t, nb::shape<-1, -1, 3>, nb::c_contig> target_image,
         nb::ndarray<nb::numpy, int32_t, nb::shape<-1, 3, 2>, nb::c_contig> vertices,
         nb::ndarray<nb::numpy, uint8_t, nb::shape<-1, 4>, nb::c_contig> colors,
-        nb::ndarray<nb::numpy, int64_t, nb::shape<-1>, nb::c_contig> out
+        nb::ndarray<nb::numpy, int64_t, nb::shape<-1>, nb::c_contig> out,
+        std::string method
     ) {
         // Get image dimensions
         const int32_t height = image.shape(0);
@@ -185,6 +194,86 @@ public:
             if (a == 0) {
                 out_data[i] = 0;
                 continue;
+            }
+
+            // Method 1: pointwise
+            if (method == "pointwise") {
+                int64_t total_sq_err_delta = 0;
+                int32_t min_x = std::min({current_vertices[0], current_vertices[2], current_vertices[4]});
+                int32_t max_x = std::max({current_vertices[0], current_vertices[0], current_vertices[4]});
+                int32_t min_y = std::min({current_vertices[1], current_vertices[3], current_vertices[5]});
+                int32_t max_y = std::max({current_vertices[1], current_vertices[3], current_vertices[5]});
+                min_x = std::max(0, min_x);
+                max_x = std::min(width - 1, max_x);
+                min_y = std::max(0, min_y);
+                max_y = std::min(height - 1, max_y);
+
+                // Barycentric coordinates setup
+
+                int32_t w0_start = edge_function(
+                    current_vertices[2], current_vertices[3],
+                    current_vertices[4], current_vertices[5],
+                    min_x, min_y);
+                int32_t w1_start = edge_function(
+                    current_vertices[4], current_vertices[5],
+                    current_vertices[0], current_vertices[1],
+                    min_x, min_y);
+                int32_t w2_start = edge_function(
+                    current_vertices[0], current_vertices[1],
+                    current_vertices[2], current_vertices[3],
+                    min_x, min_y);
+
+                int32_t w0_col_inc = (current_vertices[5] - current_vertices[3]);
+                int32_t w1_col_inc = (current_vertices[1] - current_vertices[5]);
+                int32_t w2_col_inc = (current_vertices[3] - current_vertices[1]);
+
+                int32_t w0_row_inc = (current_vertices[2] - current_vertices[4]);
+                int32_t w1_row_inc = (current_vertices[4] - current_vertices[0]);
+                int32_t w2_row_inc = (current_vertices[0] - current_vertices[2]);
+
+                int32_t w0_row = w0_start;
+                int32_t w1_row = w1_start;
+                int32_t w2_row = w2_start;
+                for (int32_t y = min_y; y <= max_y; ++y) {
+                    int32_t w0 = w0_row;
+                    int32_t w1 = w1_row;
+                    int32_t w2 = w2_row;
+                    for (int32_t x = min_x; x <= max_x; ++x) {
+                        // Barycentric coordinates to check if the pixel is inside the triangle
+                        if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) {
+                            const size_t idx = (y * width + x) * 3;
+                            const uint8_t *p_img = image_data + idx;
+                            const uint8_t *p_tgt = target_image_data + idx;
+
+                            int32_t err_old_r = (int32_t)p_img[0] - p_tgt[0];
+                            int32_t err_old_g = (int32_t)p_img[1] - p_tgt[1];
+                            int32_t err_old_b = (int32_t)p_img[2] - p_tgt[2];
+
+                            const uint32_t inv_a = 255 - a;
+                            uint8_t mod_r = (uint8_t)(((uint32_t)r * a + (uint32_t)p_img[0] * inv_a + 128) >> 8);
+                            uint8_t mod_g = (uint8_t)(((uint32_t)g * a + (uint32_t)p_img[1] * inv_a + 128) >> 8);
+                            uint8_t mod_b = (uint8_t)(((uint32_t)b * a + (uint32_t)p_img[2] * inv_a + 128) >> 8);
+
+                            int32_t err_new_r = (int32_t)mod_r - p_tgt[0];
+                            int32_t err_new_g = (int32_t)mod_g - p_tgt[1];
+                            int32_t err_new_b = (int32_t)mod_b - p_tgt[2];
+
+                            total_sq_err_delta += (err_new_r*err_new_r - err_old_r*err_old_r) +
+                                                  (err_new_g*err_new_g - err_old_g*err_old_g) +
+                                                  (err_new_b*err_new_b - err_old_b*err_old_b);
+                        }
+                        w0 += w0_col_inc;
+                        w1 += w1_col_inc;
+                        w2 += w2_col_inc;
+                    }
+                    w0_row += w0_row_inc;
+                    w1_row += w1_row_inc;
+                    w2_row += w2_row_inc;
+                }
+                out_data[i] = total_sq_err_delta;
+                continue;
+            } else if (method != "scanline") {
+                throw std::runtime_error("Unsupported method: " + method);
             }
 
             // --- 1. Sort Vertices by Y-coordinate ---

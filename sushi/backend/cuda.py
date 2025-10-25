@@ -1,4 +1,5 @@
-from typing import Any, ClassVar, Optional, override
+from dataclasses import dataclass
+from typing import Any, ClassVar, Literal, Optional, override
 
 import numpy as np
 from numpy.typing import NDArray
@@ -23,10 +24,13 @@ except ImportError as e:
     ) from e
 
 
+@dataclass(frozen=True)
 class CUDAConfig(Config):
     """Configuration for the CUDA backend. (Currently empty)"""
 
-    pass
+    method: Literal["naive-triangle-parallel", "naive-pixel-parallel"] = (
+        "naive-triangle-parallel"
+    )
 
 
 class CUDADrawLossContext(DrawLossContext):
@@ -58,7 +62,9 @@ class CUDADrawLossContext(DrawLossContext):
         # and copies the image data over. The `self._core_backend` object
         # now explicitly holds the state of the CUDA data.
         self._core_backend = CoreCUDABackend(
-            background_image=background_image, target_image=target_image
+            background_image=background_image,
+            target_image=target_image,
+            method=config.method,
         )
 
     @override

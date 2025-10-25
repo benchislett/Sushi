@@ -14,9 +14,10 @@ where N is the number of triangles, and each triangle has three 2D vertices.
 """
 
 import math
-from typing import Literal, Optional
+from typing import Any, Literal, Optional
 
 import numpy as np
+from tqdm import tqdm
 
 # --- Constants and Mappings ---
 
@@ -29,13 +30,25 @@ SIZE_RANGES = {
     "large": (64, 128),
     "very_large": (128, 256),
     "huge": (256, 512),
+    "gigantic": (512, 1024),
+    "massive": (1024, 2048),
 }
 
 ShapeType = Literal[
     "equilateral", "right", "random", "wide", "tall", "slanted-up", "slanted-down"
 ]
-SizeType = Literal["micro", "tiny", "small", "medium", "large", "very_large", "huge"]
-DistributionType = Literal["uniform", "normal", "spaced"]
+SizeType = Literal[
+    "micro",
+    "tiny",
+    "small",
+    "medium",
+    "large",
+    "very_large",
+    "huge",
+    "gigantic",
+    "massive",
+]
+DistributionType = Literal["uniform", "normal", "spaced", "center"]
 
 # --- Core Generation Function ---
 
@@ -51,6 +64,7 @@ def generate_triangles(
     distribution_std_dev: Optional[tuple[float, float]] = None,
     random_rotation: bool = True,
     random_seed: Optional[int] = 42,
+    **kwargs: Any,
 ) -> np.ndarray:
     """
     Generates a collection of 2D triangles with integer coordinates.
@@ -94,6 +108,8 @@ def generate_triangles(
             mean=distribution_mean,
             std_dev=distribution_std_dev,
         )
+    elif distribution == "center":
+        centers = np.array([[screen_width / 2, screen_height / 2]] * count)
     elif distribution == "spaced":
         centers = _generate_spaced_centers(count, screen_width, screen_height)
     else:
@@ -106,7 +122,8 @@ def generate_triangles(
     triangles = []
     min_len, max_len = SIZE_RANGES[size]
 
-    for i in range(count):
+    it = range(count) if count <= 1_000_000 else tqdm(range(count))
+    for i in it:
         length = np.random.uniform(min_len, max_len)
         center = centers[i]
         angle = 0
@@ -257,197 +274,3 @@ def _generate_random(radius: float) -> np.ndarray:
     y_coords = radii * np.sin(angles)
 
     return np.vstack([x_coords, y_coords]).T
-
-
-# --- Example Usage & Visualization ---
-
-if __name__ == "__main__":
-    # Dynamically import matplotlib only when running as a script
-    import matplotlib.pyplot as plt
-    from matplotlib.patches import Polygon
-
-    def plot_triangles_on_ax(
-        ax: plt.Axes,
-        triangles: np.ndarray,
-        screen_width: int,
-        screen_height: int,
-        title: str,
-    ) -> None:
-        """
-        Draws the generated triangles onto a given Matplotlib Axes object.
-        """
-        ax.set_title(title, fontsize=10)
-        ax.set_xlim(0, screen_width)
-        ax.set_ylim(0, screen_height)
-        ax.set_aspect("equal", adjustable="box")
-        ax.invert_yaxis()  # Invert y-axis to match screen coordinates (0,0 at top-left)
-
-        for tri in triangles:
-            polygon = Polygon(tri, edgecolor="blue", facecolor="lightblue", alpha=0.5)
-            ax.add_patch(polygon)
-
-        ax.grid(True)
-
-    # Configuration
-    SCREEN_WIDTH = 512
-    SCREEN_HEIGHT = 512
-    RANDOM_SEED = 42
-    OUTPUT_FILENAME = "triangle_examples.png"
-
-    print("Generating example triangle sets...")
-
-    # Define all example configurations
-    examples = [
-        {
-            "title": "Medium, Rotated Right Triangles (Spaced)",
-            "params": {
-                "count": 100,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "right",
-                "size": "medium",
-                "distribution": "spaced",
-                "random_seed": RANDOM_SEED,
-            },
-        },
-        {
-            "title": "Small, Equilateral (Custom Normal Dist.)",
-            "params": {
-                "count": 300,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "equilateral",
-                "size": "small",
-                "distribution": "normal",
-                "distribution_mean": (SCREEN_WIDTH * 0.2, SCREEN_HEIGHT * 0.2),
-                "distribution_std_dev": (SCREEN_WIDTH / 15, SCREEN_HEIGHT / 15),
-                "random_seed": RANDOM_SEED,
-            },
-        },
-        {
-            "title": "Large, Wide (Uniform, No Jitter/Flip)",
-            "params": {
-                "count": 300,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "wide",
-                "size": "large",
-                "distribution": "uniform",
-                "random_rotation": False,
-                "random_seed": RANDOM_SEED,
-            },
-        },
-        {
-            "title": "Medium, Slanted-Up (With Jitter/Flip)",
-            "params": {
-                "count": 300,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "slanted-up",
-                "size": "medium",
-                "distribution": "uniform",
-                "random_rotation": True,
-                "random_seed": RANDOM_SEED,
-            },
-        },
-        {
-            "title": "Medium, Tall (Spaced, With Jitter/Flip)",
-            "params": {
-                "count": 200,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "tall",
-                "size": "medium",
-                "distribution": "spaced",
-                "random_rotation": True,
-                "random_seed": RANDOM_SEED,
-            },
-        },
-        {
-            "title": "Huge, Random (Normal Distribution)",
-            "params": {
-                "count": 25,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "random",
-                "size": "huge",
-                "distribution": "normal",
-                "random_seed": RANDOM_SEED,
-            },
-        },
-        {
-            "title": "Large, Random (Centered Distribution)",
-            "params": {
-                "count": 50,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "random",
-                "size": "large",
-                "distribution": "normal",
-                "distribution_mean": (SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2),
-                "distribution_std_dev": (0, 0),
-                "random_seed": RANDOM_SEED,
-            },
-        },
-        {
-            "title": "Micro, Equilateral (Spaced Distribution) With Jitter",
-            "params": {
-                "count": 1000,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "equilateral",
-                "size": "micro",
-                "distribution": "spaced",
-                "random_rotation": True,
-                "random_seed": RANDOM_SEED,
-            },
-        },
-        {
-            "title": "Tiny, Right Triangles (Uniform Distribution)",
-            "params": {
-                "count": 1000,
-                "screen_width": SCREEN_WIDTH,
-                "screen_height": SCREEN_HEIGHT,
-                "shape_type": "right",
-                "size": "tiny",
-                "distribution": "uniform",
-                "random_seed": RANDOM_SEED,
-                "random_rotation": False,
-            },
-        },
-    ]
-
-    # Create a grid of plots.
-    num_examples = len(examples)
-    grid_cols = 3
-    grid_rows = math.ceil(num_examples / grid_cols)
-    fig, axes = plt.subplots(
-        grid_rows, grid_cols, figsize=(5 * grid_cols, 5 * grid_rows)
-    )
-    axes = axes.flatten()
-
-    # Generate and plot each example
-    for i, example in enumerate(examples):
-        assert isinstance(example, dict)
-        assert isinstance(example["params"], dict)
-        assert isinstance(example["title"], str)
-        triangles = generate_triangles(**example["params"])
-        plot_triangles_on_ax(
-            ax=axes[i],
-            triangles=triangles,
-            screen_width=SCREEN_WIDTH,
-            screen_height=SCREEN_HEIGHT,
-            title=example["title"],
-        )
-
-    # Hide any unused subplots
-    for i in range(num_examples, len(axes)):
-        axes[i].axis("off")
-
-    # Adjust layout and save the final image
-    fig.suptitle("Triangle Generation Examples", fontsize=24)
-    fig.tight_layout(rect=[0, 0.03, 1, 0.96])
-    plt.savefig(OUTPUT_FILENAME, dpi=400, bbox_inches="tight")
-    plt.close(fig)  # Close the figure to free memory
-
-    print(f"Stitched plot saved to '{OUTPUT_FILENAME}'")

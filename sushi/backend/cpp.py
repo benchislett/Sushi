@@ -1,4 +1,5 @@
-from typing import Any, ClassVar, Optional, override
+from dataclasses import dataclass
+from typing import Any, ClassVar, Literal, Optional, override
 
 import numpy as np
 from numpy.typing import NDArray
@@ -24,8 +25,9 @@ except ImportError as e:
     ) from e
 
 
+@dataclass(frozen=True)
 class CPPConfig(Config):
-    pass
+    method: Literal["scanline", "pointwise"] = "scanline"
 
 
 class CPPDrawContext(DrawContext):
@@ -104,7 +106,12 @@ class CPPDrawLossContext(DrawLossContext):
         # for a batch of triangles without modifying a canvas.
         out = np.empty((vertices.shape[0],), dtype=np.int64)
         CoreBackend.triangle_drawloss_batch_rgba(
-            self._background_image, self._target_image, vertices, colors, out
+            self._background_image,
+            self._target_image,
+            vertices,
+            colors,
+            out,
+            self.config.method,
         )
         # Cast to int64 to match the interface spec, as loss is squared error.
         return out.astype(np.int64)

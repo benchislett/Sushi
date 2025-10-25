@@ -5,8 +5,10 @@
 #include <nanobind/nanobind.h>
 #include <nanobind/ndarray.h>
 #include <nanobind/stl/vector.h>
+#include <nanobind/stl/string.h>
 
 #include <cstdint>
+#include <string>
 
 namespace nb = nanobind;
 
@@ -17,7 +19,15 @@ struct ImageRGB
     int height = 0;
 };
 
-void launch_drawloss_kernel(
+void launch_drawloss_kernel_naive_triangle_parallel(
+    const ImageRGB &background,
+    const ImageRGB &target,
+    const int32_t *vertices,
+    const uint8_t *colors,
+    int64_t *losses,
+    int num_triangles);
+
+void launch_drawloss_kernel_naive_pixel_parallel(
     const ImageRGB &background,
     const ImageRGB &target,
     const int32_t *vertices,
@@ -30,7 +40,9 @@ class CUDABackend
 public:
     CUDABackend(
         nb::ndarray<uint8_t, nb::shape<-1, -1, 3>, nb::c_contig, nb::device::cpu> background_image,
-        nb::ndarray<uint8_t, nb::shape<-1, -1, 3>, nb::c_contig, nb::device::cpu> target_image)
+        nb::ndarray<uint8_t, nb::shape<-1, -1, 3>, nb::c_contig, nb::device::cpu> target_image,
+        std::string method
+    ) : m_method(std::move(method))
     {
         if (background_image.ndim() != 3 || target_image.ndim() != 3)
         {
@@ -81,8 +93,8 @@ public:
         }
     }
 
-    CUDABackend(ImageRGB background_image, ImageRGB target_image)
-        : d_background_image(background_image), d_target_image(target_image) {}
+    CUDABackend(ImageRGB background_image, ImageRGB target_image, std::string method)
+        : d_background_image(background_image), d_target_image(target_image), m_method(std::move(method)) {}
 
     ~CUDABackend()
     {
@@ -117,7 +129,18 @@ public:
         cudaMemcpy(d_colors, colors.data(), colors.nbytes(), cudaMemcpyHostToDevice);
 
         // --- Launch CUDA Kernel ---
-        launch_drawloss_kernel(d_background_image, d_target_image, d_vertices, d_colors, d_losses, num_triangles);
+        if (m_method == "naive-triangle-parallel")
+        {
+            launch_drawloss_kernel_naive_triangle_parallel(
+                d_background_image, d_target_image, d_vertices, d_colors, d_losses, num_triangles);
+        }
+        else if (m_method == "naive-pixel-parallel")
+        {
+            launch_drawloss_kernel_naive_pixel_parallel(
+                d_background_image, d_target_image, d_vertices, d_colors, d_losses, num_triangles);
+        } else {
+            throw std::runtime_error("Unknown method: " + m_method);
+        }
 
         // --- Copy results back to host ---
         cudaMemcpy(out_losses.data(), d_losses, out_losses.nbytes(), cudaMemcpyDeviceToHost);
@@ -146,10 +169,11 @@ public:
         d_target_copy.height = d_target_image.height;
         d_target_copy.width = d_target_image.width;
 
-        return CUDABackend(d_bg_copy, d_target_copy);
+        return CUDABackend(d_bg_copy, d_target_copy, m_method);
     }
 
 private:
     ImageRGB d_background_image;
     ImageRGB d_target_image;
+    std::string m_method;
 };
