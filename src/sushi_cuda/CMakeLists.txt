@@ -20,3 +20,12 @@ target_include_directories(sushi_cuda
   PRIVATE
     $<TARGET_PROPERTY:sushi_cpp,INTERFACE_INCLUDE_DIRECTORIES>
 )
+
+# Add executable for compositing test/benchmark
+add_executable(compositing_benchmark
+  experiments/compositing.cu
+)
+
+target_link_libraries(compositing_benchmark PRIVATE
+  sushi_cuda
+)

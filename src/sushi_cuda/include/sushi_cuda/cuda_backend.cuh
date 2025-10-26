@@ -17,13 +17,6 @@
 
 namespace nb = nanobind;
 
-struct ImageRGB
-{
-    uint8_t *data = nullptr;
-    int width = 0;
-    int height = 0;
-};
-
 void launch_drawloss_kernel_naive_triangle_parallel(
     const ImageRGB &background,
     const ImageRGB &target,
