@@ -300,9 +300,9 @@ def get_golden_benchmark_data(N: int) -> dict[str, dict[str, Any]]:
 # --- Benchmark Configuration ---
 
 WARMUP_RUNS = (
-    0  # Number of initial runs to discard for JIT compilation, cache warming, etc.
+    4  # Number of initial runs to discard for JIT compilation, cache warming, etc.
 )
-TIMED_RUNS = 1  # Number of runs to average for the final timing.
+TIMED_RUNS = 10  # Number of runs to average for the final timing.
 
 
 @dataclass
