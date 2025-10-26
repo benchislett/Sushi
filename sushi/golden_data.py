@@ -17,6 +17,7 @@ import math
 from typing import Any, Literal, Optional
 
 import numpy as np
+from numpy.typing import NDArray
 from tqdm import tqdm
 
 # --- Constants and Mappings ---
@@ -65,7 +66,7 @@ def generate_triangles(
     random_rotation: bool = True,
     random_seed: Optional[int] = 42,
     **kwargs: Any,
-) -> np.ndarray:
+) -> NDArray[np.int32]:
     """
     Generates a collection of 2D triangles with integer coordinates.
 
@@ -126,7 +127,7 @@ def generate_triangles(
     for i in it:
         length = np.random.uniform(min_len, max_len)
         center = centers[i]
-        angle = 0
+        angle = 0.0
 
         # Select the appropriate shape generation function
 
@@ -185,7 +186,9 @@ def generate_triangles(
 # --- Helper Functions for Distributions ---
 
 
-def _generate_uniform_centers(count: int, width: int, height: int) -> np.ndarray:
+def _generate_uniform_centers(
+    count: int, width: int, height: int
+) -> NDArray[np.float64]:
     """Generates center points uniformly across the screen."""
     centers_x = np.random.uniform(0, width, size=(count, 1))
     centers_y = np.random.uniform(0, height, size=(count, 1))
@@ -198,7 +201,7 @@ def _generate_normal_centers(
     height: int,
     mean: Optional[tuple[float, float]] = None,
     std_dev: Optional[tuple[float, float]] = None,
-) -> np.ndarray:
+) -> NDArray[np.float64]:
     """Generates center points normally distributed around a mean."""
     if mean is None:
         mean = (width / 2, height / 2)
@@ -212,7 +215,9 @@ def _generate_normal_centers(
     return centers
 
 
-def _generate_spaced_centers(count: int, width: int, height: int) -> np.ndarray:
+def _generate_spaced_centers(
+    count: int, width: int, height: int
+) -> NDArray[np.float64]:
     """Generates center points that are roughly evenly spaced in a grid."""
     if count == 0:
         return np.array([])
@@ -236,7 +241,7 @@ def _generate_spaced_centers(count: int, width: int, height: int) -> np.ndarray:
 # --- Helper Functions for Triangle Shapes (centered at origin) ---
 
 
-def _generate_equilateral(side: float) -> np.ndarray:
+def _generate_equilateral(side: float) -> NDArray[np.float64]:
     """Generates an equilateral triangle centered at the origin."""
     height = side * np.sqrt(3) / 2
     # Vertices are calculated based on geometric properties
@@ -246,7 +251,7 @@ def _generate_equilateral(side: float) -> np.ndarray:
     return np.array([v1, v2, v3])
 
 
-def _generate_right(width: float, height: float) -> np.ndarray:
+def _generate_right(width: float, height: float) -> NDArray[np.float64]:
     """Generates a right triangle centered at the origin."""
     # Create vertices for a right triangle at (0,0), (width,0), (0,height)
     # and then translate them so the centroid is at the origin.
@@ -256,7 +261,7 @@ def _generate_right(width: float, height: float) -> np.ndarray:
     return np.array([v1, v2, v3])
 
 
-def _generate_long_triangle(length: float) -> np.ndarray:
+def _generate_long_triangle(length: float) -> NDArray[np.float64]:
     """Generates a long, thin triangle for wide/tall shapes."""
     height = length / 8.0  # Make it very thin relative to its length
     # Shape has two vertices on one side and one on the other
@@ -265,7 +270,7 @@ def _generate_long_triangle(length: float) -> np.ndarray:
     )
 
 
-def _generate_random(radius: float) -> np.ndarray:
+def _generate_random(radius: float) -> NDArray[np.float64]:
     """Generates a random triangle with vertices within a given radius."""
     angles = np.random.uniform(0, 2 * np.pi, 3)
     radii = np.random.uniform(0, radius, 3)

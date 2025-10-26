@@ -10,7 +10,9 @@ from typing import Any, List, Optional, Type
 import matplotlib.pyplot as plt
 import numpy as np
 import rich.box
+from matplotlib.axes import Axes
 from matplotlib.patches import Polygon
+from numpy.typing import NDArray
 from rich.console import Console
 from rich.live import Live
 from rich.table import Table
@@ -36,17 +38,17 @@ class BenchmarkConfig:
     description: str
     batch_sizes: List[int]
     config: Optional[Config] = None
-    short_name: Optional[str] = None
+    short_name: str = ""
 
     def __post_init__(self) -> None:
-        if self.short_name is None:
+        if not self.short_name:
             object.__setattr__(self, "short_name", self.description)
 
 
 @dataclass(frozen=True)
 class BenchmarkInputData:
-    vertices: np.ndarray
-    colors: np.ndarray
+    vertices: NDArray[np.int32]
+    colors: NDArray[np.uint8]
     config_name: str
     config: dict[str, Any]
 
@@ -113,8 +115,8 @@ ALL_BENCHMARK_CONFIGS: List[BenchmarkConfig] = [
 
 
 def plot_triangles_on_ax(
-    ax: plt.Axes,
-    triangles: np.ndarray,
+    ax: Axes,
+    triangles: NDArray[np.int32],
     screen_width: int,
     screen_height: int,
     title: str,
@@ -170,7 +172,7 @@ def plot_example_triangles(
 
     # Adjust layout and save the final image
     fig.suptitle("Triangle Generation Examples", fontsize=24)
-    fig.tight_layout(rect=[0, 0.03, 1, 0.96])
+    fig.tight_layout(rect=(0, 0.03, 1, 0.96))
     plt.savefig(out_filename, dpi=400, bbox_inches="tight")
     plt.close(fig)  # Close the figure to free memory
 
@@ -312,7 +314,7 @@ class BenchmarkResult:
 
 
 def count_pixels_in_batch(
-    vertices: np.ndarray,
+    vertices: NDArray[np.int32],
     image_size: int,
     backend: type["Backend"],
     backend_config: Optional[Config],
