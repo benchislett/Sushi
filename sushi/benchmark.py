@@ -320,7 +320,7 @@ def count_pixels_in_batch(
     backend_config: Optional[Config],
 ) -> int:
     """
-    Calculates the total number pixels that are covered by a DrawLoss batch.
+    Calculates the total number of pixels that are covered by a DrawLoss batch.
 
     Note: Triangles are treated as independent. There are no coverage assumptions
     or culling rules. The return value is the sum of the pixel counts of each triangle.
