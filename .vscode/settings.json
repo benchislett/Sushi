@@ -67,7 +67,8 @@
         "unordered_map": "cpp",
         "format": "cpp",
         "numbers": "cpp",
-        "__nullptr": "cpp"
+        "__nullptr": "cpp",
+        "iostream": "cpp"
     },
     "cmake.sourceDirectory": "${workspaceFolder}/src",
     "notebook.formatOnSave.enabled": true

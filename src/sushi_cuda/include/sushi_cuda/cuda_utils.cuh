@@ -4,6 +4,20 @@
 #include <cuda_runtime.h>
 #include <cuda_runtime_api.h>
 
+struct ImageRGB
+{
+    uint8_t *data = nullptr;
+    int width = 0;
+    int height = 0;
+};
+
+struct ImageRGBA
+{
+    uint8_t *data = nullptr;
+    int width = 0;
+    int height = 0;
+};
+
 // Helper macros for checking CUDA errors
 #define CUDA_CHECK(err)                                                                  \
     if (err != cudaSuccess)                                                              \

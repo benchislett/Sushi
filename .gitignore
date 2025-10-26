@@ -262,6 +262,8 @@ tests/data/failed_*.png
 triangle_examples.png
 benchmark_results.csv
 benchmark_triangle_samples.png
+*.nsys-rep
+build_manual/
 
 # local development files
 scratchpad.ipynb
