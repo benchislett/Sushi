@@ -309,6 +309,7 @@ TIMED_RUNS = 10  # Number of runs to average for the final timing.
 class BenchmarkResult:
     backend: str
     scenario: str
+    batch_size: int
 
     tris_per_sec: float
     pixels_per_sec: float
@@ -388,6 +389,7 @@ def run_benchmark(
     return BenchmarkResult(
         backend=run_config.short_name or "",
         scenario=config["short_name"],
+        batch_size=N,
         tris_per_sec=tris_per_sec,
         pixels_per_sec=pixels_per_sec,
     )
@@ -482,11 +484,12 @@ def main() -> None:
         for backend in available_backend_names:
             row_cells = [backend]
             for scenario in scenario_names:
-                result: Optional[BenchmarkResult] = current_results[scenario].get(
-                    backend
+                results: List[BenchmarkResult] = current_results[scenario].get(
+                    backend, []
                 )
 
-                if result:
+                if results:
+                    result = results[-1]
                     unit_scales = [" ", "k", "M", "G", "T"]
                     tris_per_sec = result.tris_per_sec
                     scale_index = 0
@@ -566,11 +569,31 @@ def main() -> None:
                         run_config=benchmark_config,
                     )
                     if result is not None:
-                        results_data[result.scenario][result.backend] = result
+                        if result.scenario not in results_data:
+                            results_data[result.scenario] = {}
+                        if result.backend not in results_data[result.scenario]:
+                            results_data[result.scenario][result.backend] = []
+                        results_data[result.scenario][result.backend].append(result)
                         live.update(generate_table(results_data))
 
     print()
     print("Benchmark run complete.")
+
+    # Save the final results to a CSV file
+    output_csv = "benchmark_results.csv"
+    with open(output_csv, "w") as f:
+        f.write("Backend,Scenario,Batch Size,Triangles per Second,Pixels per Second\n")
+        for scenario, backend_results in results_data.items():
+            for backend, results in backend_results.items():
+                for result in results:
+                    if result is not None:
+                        f.write(
+                            f"{result.backend},{result.scenario},"
+                            f"{result.batch_size},{result.tris_per_sec:.0f},"
+                            f"{result.pixels_per_sec:.0f}\n"
+                        )
+
+    print(f"Final benchmark results saved to '{output_csv}'")
 
 
 if __name__ == "__main__":
