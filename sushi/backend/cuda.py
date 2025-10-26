@@ -1,4 +1,5 @@
-from typing import Any, ClassVar, Optional, override
+from dataclasses import dataclass
+from typing import Any, ClassVar, Literal, Optional, override
 
 import numpy as np
 from numpy.typing import NDArray
@@ -23,10 +24,13 @@ except ImportError as e:
     ) from e
 
 
+@dataclass(frozen=True)
 class CUDAConfig(Config):
     """Configuration for the CUDA backend. (Currently empty)"""
 
-    pass
+    method: Literal["naive-triangle-parallel", "naive-pixel-parallel"] = (
+        "naive-pixel-parallel"
+    )
 
 
 class CUDADrawLossContext(DrawLossContext):
@@ -58,7 +62,9 @@ class CUDADrawLossContext(DrawLossContext):
         # and copies the image data over. The `self._core_backend` object
         # now explicitly holds the state of the CUDA data.
         self._core_backend = CoreCUDABackend(
-            background_image=background_image, target_image=target_image
+            background_image=background_image,
+            target_image=target_image,
+            method=config.method,
         )
 
     @override
@@ -100,6 +106,7 @@ class CUDADrawLossContext(DrawLossContext):
 
 class CUDABackend(Backend):
     name: ClassVar[str] = "cuda"
+    _unavailable: bool = False
 
     @classmethod
     def create_draw_context(cls: type["CUDABackend"], **kwargs: Any) -> DrawContext:
@@ -129,11 +136,16 @@ class CUDABackend(Backend):
     @classmethod
     @override
     def is_available(cls: type["CUDABackend"]) -> bool:
+        if cls._unavailable:
+            return False
         try:
             _ = cls.create_drawloss_context(
                 background_image=np.zeros((10, 10, 3), dtype=np.uint8),
                 target_image=np.zeros((10, 10, 3), dtype=np.uint8),
             )
             return True
-        except Exception:
+        except Exception as e:
+            if not cls._unavailable:
+                cls._unavailable = True
+                print("CUDA backend is not available. Error:", e)
             return False

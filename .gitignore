@@ -260,6 +260,9 @@ CMakeUserPresets.json
 tests/data/success_*.png
 tests/data/failed_*.png
 triangle_examples.png
+benchmark_results.csv
+benchmark_triangle_samples.png
 
 # local development files
 scratchpad.ipynb
+tmp.sh

@@ -31,7 +31,9 @@ dev = [
     "matplotlib",
     "seaborn",
     "jupyterlab",
-    "ipykernel"
+    "ipykernel",
+    "rich",
+    "tqdm"
 ]
 
 [tool.ruff]
