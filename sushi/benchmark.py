@@ -429,20 +429,22 @@ def main() -> None:
             caption="[dim]T/s = Triangles per Second | P/s = Pixels per Second[/dim]",
         )
         table.add_column(
-            "Benchmark Scenario",
+            "Backend",
             style="cyan",
             no_wrap=True,
         )
-        available_backend_names = [b.short_name for b in available_backend_configs]
-        for backend_name in available_backend_names:
+        # Scenarios are now columns
+        for scenario in scenario_names:
             table.add_column(
-                backend_name,
+                scenario,
                 justify="right",
             )
 
-        for scenario in scenario_names:
-            row_cells = [scenario]
-            for backend in available_backend_names:
+        available_backend_names = [b.short_name for b in available_backend_configs]
+        # Backends are now rows
+        for backend in available_backend_names:
+            row_cells = [backend]
+            for scenario in scenario_names:
                 result: Optional[BenchmarkResult] = current_results[scenario].get(
                     backend
                 )
