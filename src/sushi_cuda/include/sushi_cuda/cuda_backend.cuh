@@ -7,8 +7,13 @@
 #include <nanobind/stl/vector.h>
 #include <nanobind/stl/string.h>
 
+#include <sushi_cuda/cuda_utils.cuh>
+
 #include <cstdint>
 #include <string>
+#include <iostream>
+#include <stdexcept>
+#include <memory>
 
 namespace nb = nanobind;
 
@@ -58,49 +63,50 @@ public:
         d_background_image.width = background_image.shape(1);
         size_t bg_size = d_background_image.height * d_background_image.width * 3 * sizeof(uint8_t);
 
+        CUDA_CHECK_LAST_ERROR();
+
         // Allocate memory on the GPU
-        cudaError_t err = cudaMalloc(&d_background_image.data, bg_size);
-        if (err != cudaSuccess)
-        {
-            throw std::runtime_error("Failed to allocate background image on GPU: " + std::string(cudaGetErrorString(err)));
-        }
+        CUDA_CHECK(cudaMalloc(&d_background_image.data, bg_size));
 
         // Copy data from host (numpy array) to device (GPU)
-        err = cudaMemcpy(d_background_image.data, background_image.data(), bg_size, cudaMemcpyHostToDevice);
-        if (err != cudaSuccess)
-        {
-            cudaFree(d_background_image.data);
-            throw std::runtime_error("Failed to copy background image to GPU: " + std::string(cudaGetErrorString(err)));
-        }
+        CUDA_CHECK(cudaMemcpy(d_background_image.data, background_image.data(), bg_size, cudaMemcpyHostToDevice));
 
         // --- Setup Target Image ---
         d_target_image.height = target_image.shape(0);
         d_target_image.width = target_image.shape(1);
         size_t target_size = d_target_image.height * d_target_image.width * 3 * sizeof(uint8_t);
 
-        err = cudaMalloc(&d_target_image.data, target_size);
-        if (err != cudaSuccess)
-        {
-            cudaFree(d_background_image.data); // Clean up previous allocation
-            throw std::runtime_error("Failed to allocate target image on GPU: " + std::string(cudaGetErrorString(err)));
-        }
-        err = cudaMemcpy(d_target_image.data, target_image.data(), target_size, cudaMemcpyHostToDevice);
-        if (err != cudaSuccess)
-        {
-            cudaFree(d_background_image.data);
-            cudaFree(d_target_image.data);
-            throw std::runtime_error("Failed to copy target image to GPU: " + std::string(cudaGetErrorString(err)));
-        }
+        CUDA_CHECK(cudaMalloc(&d_target_image.data, target_size));
+        CUDA_CHECK(cudaMemcpy(d_target_image.data, target_image.data(), target_size, cudaMemcpyHostToDevice));
     }
 
     CUDABackend(ImageRGB background_image, ImageRGB target_image, std::string method)
         : d_background_image(background_image), d_target_image(target_image), m_method(std::move(method)) {}
 
-    ~CUDABackend()
+    ~CUDABackend() noexcept(false)
     {
-        cudaFree(d_background_image.data);
-        cudaFree(d_target_image.data);
+        if (d_background_image.data)
+        {
+            CUDA_CHECK(cudaFree(d_background_image.data));
+        }
+        if (d_target_image.data)
+        {
+            CUDA_CHECK(cudaFree(d_target_image.data));
+        }
     }
+
+    CUDABackend(CUDABackend&& other) noexcept
+        : d_background_image(other.d_background_image),
+          d_target_image(other.d_target_image),
+          m_method(std::move(other.m_method))
+    {
+        other.d_background_image.data = nullptr;
+        other.d_target_image.data = nullptr;
+    }
+
+    CUDABackend(const CUDABackend&) = delete; // Disable copy constructor
+    CUDABackend& operator=(const CUDABackend&) = delete; // Disable copy assignment
+    CUDABackend& operator=(CUDABackend&&) = delete; // Disable move assignment
 
     void drawloss(
         nb::ndarray<int32_t, nb::shape<-1, 3, 2>, nb::c_contig, nb::device::cpu> vertices,
@@ -120,13 +126,18 @@ public:
         uint8_t *d_colors;
         int64_t *d_losses;
 
-        cudaMalloc(&d_vertices, vertices.nbytes());
-        cudaMalloc(&d_colors, colors.nbytes());
-        cudaMalloc(&d_losses, out_losses.nbytes());
+
+        CUDA_CHECK_LAST_ERROR();
+
+        CUDA_CHECK(cudaMalloc(&d_vertices, vertices.nbytes()));
+        CUDA_CHECK(cudaMalloc(&d_colors, colors.nbytes()));
+        CUDA_CHECK(cudaMalloc(&d_losses, out_losses.nbytes()));
 
         // --- Copy inputs to GPU ---
-        cudaMemcpy(d_vertices, vertices.data(), vertices.nbytes(), cudaMemcpyHostToDevice);
-        cudaMemcpy(d_colors, colors.data(), colors.nbytes(), cudaMemcpyHostToDevice);
+        CUDA_CHECK(cudaMemcpy(d_vertices, vertices.data(), vertices.nbytes(), cudaMemcpyHostToDevice));
+        CUDA_CHECK(cudaMemcpy(d_colors, colors.data(), colors.nbytes(), cudaMemcpyHostToDevice));
+        // Zero out the losses array on the GPU
+        CUDA_CHECK(cudaMemset(d_losses, 0, out_losses.nbytes()));
 
         // --- Launch CUDA Kernel ---
         if (m_method == "naive-triangle-parallel")
@@ -143,15 +154,18 @@ public:
         }
 
         // --- Copy results back to host ---
-        cudaMemcpy(out_losses.data(), d_losses, out_losses.nbytes(), cudaMemcpyDeviceToHost);
+        CUDA_CHECK(cudaMemcpy(out_losses.data(), d_losses, out_losses.nbytes(), cudaMemcpyDeviceToHost));
+        CUDA_SYNC_CHECK();
 
         // --- Free temporary GPU memory ---
-        cudaFree(d_vertices);
-        cudaFree(d_colors);
-        cudaFree(d_losses);
+        CUDA_CHECK(cudaFree(d_vertices));
+        CUDA_CHECK(cudaFree(d_colors));
+        CUDA_CHECK(cudaFree(d_losses));
+
+        CUDA_CHECK_LAST_ERROR();
     }
 
-    CUDABackend clone() const
+    std::unique_ptr<CUDABackend> clone() const
     {
         ImageRGB d_bg_copy;
         ImageRGB d_target_copy;
@@ -159,17 +173,21 @@ public:
         size_t bg_size = d_background_image.height * d_background_image.width * 3 * sizeof(uint8_t);
         size_t target_size = d_target_image.height * d_target_image.width * 3 * sizeof(uint8_t);
 
-        cudaMalloc(&d_bg_copy.data, bg_size);
-        cudaMemcpy(d_bg_copy.data, d_background_image.data, bg_size, cudaMemcpyDeviceToDevice);
+        CUDA_CHECK_LAST_ERROR();
+
+        CUDA_CHECK(cudaMalloc(&d_bg_copy.data, bg_size));
+        CUDA_CHECK(cudaMemcpy(d_bg_copy.data, d_background_image.data, bg_size, cudaMemcpyDeviceToDevice));
         d_bg_copy.height = d_background_image.height;
         d_bg_copy.width = d_background_image.width;
 
-        cudaMalloc(&d_target_copy.data, target_size);
-        cudaMemcpy(d_target_copy.data, d_target_image.data, target_size, cudaMemcpyDeviceToDevice);
+        CUDA_CHECK(cudaMalloc(&d_target_copy.data, target_size));
+        CUDA_CHECK(cudaMemcpy(d_target_copy.data, d_target_image.data, target_size, cudaMemcpyDeviceToDevice));
         d_target_copy.height = d_target_image.height;
         d_target_copy.width = d_target_image.width;
 
-        return CUDABackend(d_bg_copy, d_target_copy, m_method);
+        CUDA_SYNC_CHECK();
+
+        return std::make_unique<CUDABackend>(d_bg_copy, d_target_copy, m_method);
     }
 
 private:

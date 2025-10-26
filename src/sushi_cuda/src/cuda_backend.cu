@@ -1,3 +1,4 @@
+#include <sushi_cuda/cuda_utils.cuh>
 #include <sushi_cuda/cuda_backend.cuh>
 
 __host__ __device__ int32_t edge_function(
@@ -132,12 +133,13 @@ __global__ void drawloss_kernel_naive_triangle_parallel(
 }
 
 __global__ void drawloss_kernel_naive_pixel_parallel(
-    const ImageRGB &background,
-    const ImageRGB &target,
+    const ImageRGB background,
+    const ImageRGB target,
     const int32_t *vertices,
     const uint8_t *colors,
     int64_t *losses,
-    int num_triangles) {
+    int num_triangles)
+{
     int x = blockIdx.x * blockDim.x + threadIdx.x;
     int y = blockIdx.y * blockDim.y + threadIdx.y;
     if (x >= background.width || y >= background.height) {
@@ -231,7 +233,7 @@ void launch_drawloss_kernel_naive_triangle_parallel(
     const int blocks_per_grid = (num_triangles + threads_per_block - 1) / threads_per_block;
     drawloss_kernel_naive_triangle_parallel<<<blocks_per_grid, threads_per_block>>>(
         background, target, vertices, colors, losses, num_triangles);
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }
 
 void launch_drawloss_kernel_naive_pixel_parallel(
@@ -241,7 +243,6 @@ void launch_drawloss_kernel_naive_pixel_parallel(
     const uint8_t *colors,
     int64_t *losses,
     int num_triangles) {
-    cudaMemset(losses, 0, num_triangles * sizeof(int64_t));
     constexpr int threads_per_block_x = 16;
     constexpr int threads_per_block_y = 16;
     const int blocks_per_grid_x = (background.width + threads_per_block_x - 1) / threads_per_block_x;
@@ -250,5 +251,5 @@ void launch_drawloss_kernel_naive_pixel_parallel(
     dim3 threads_per_block(threads_per_block_x, threads_per_block_y);
     drawloss_kernel_naive_pixel_parallel<<<blocks_per_grid, threads_per_block>>>(
         background, target, vertices, colors, losses, num_triangles);
-    cudaDeviceSynchronize();
+    CUDA_SYNC_CHECK();
 }

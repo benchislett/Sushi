@@ -29,7 +29,7 @@ class CUDAConfig(Config):
     """Configuration for the CUDA backend. (Currently empty)"""
 
     method: Literal["naive-triangle-parallel", "naive-pixel-parallel"] = (
-        "naive-triangle-parallel"
+        "naive-pixel-parallel"
     )
 
 
@@ -106,6 +106,7 @@ class CUDADrawLossContext(DrawLossContext):
 
 class CUDABackend(Backend):
     name: ClassVar[str] = "cuda"
+    _unavailable: bool = False
 
     @classmethod
     def create_draw_context(cls: type["CUDABackend"], **kwargs: Any) -> DrawContext:
@@ -135,11 +136,16 @@ class CUDABackend(Backend):
     @classmethod
     @override
     def is_available(cls: type["CUDABackend"]) -> bool:
+        if cls._unavailable:
+            return False
         try:
             _ = cls.create_drawloss_context(
                 background_image=np.zeros((10, 10, 3), dtype=np.uint8),
                 target_image=np.zeros((10, 10, 3), dtype=np.uint8),
             )
             return True
-        except Exception:
+        except Exception as e:
+            if not cls._unavailable:
+                cls._unavailable = True
+                print("CUDA backend is not available. Error:", e)
             return False
