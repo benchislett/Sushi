@@ -127,7 +127,7 @@ def generate_triangles(
     for i in it:
         length = np.random.uniform(min_len, max_len)
         center = centers[i]
-        angle = 0.0
+        angle: float
 
         # Select the appropriate shape generation function
 

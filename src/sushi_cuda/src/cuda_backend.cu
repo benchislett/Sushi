@@ -146,8 +146,6 @@ __global__ void drawloss_kernel_naive_pixel_parallel(
         return;
     }
 
-    __shared__ int32_t shmem_loss_accum[1];
-
     const int pixel_index = y * background.width + x;
 
     int32_t target_r = (int32_t) target.data[pixel_index * 3 + 0];
@@ -202,23 +200,10 @@ __global__ void drawloss_kernel_naive_pixel_parallel(
             delta_loss += __shfl_down_sync(0xFFFFFFFF, delta_loss, offset);
         }
 
-        // Block leader zeroes shared memory
-        if (threadIdx.x == 0 && threadIdx.y == 0) {
-            shmem_loss_accum[0] = 0;
-        }
-        __syncthreads();
-
-        // Warp leader adds to shared memory
+        // Global accumulation by warp leaders
         if (((threadIdx.x + threadIdx.y * blockDim.x) % 32) == 0) {
-            atomicAdd(&shmem_loss_accum[0], delta_loss);
+            atomicAdd((unsigned long long int*)&losses[i], (unsigned long long int)delta_loss);
         }
-        __syncthreads();
-
-        // Block leader adds to global memory
-        if (threadIdx.x == 0 && threadIdx.y == 0) {
-            atomicAdd((unsigned long long int*)&losses[i], (unsigned long long int)shmem_loss_accum[0]);
-        }
-        __syncthreads();
     }
 }
 

@@ -83,15 +83,15 @@ public:
     CUDABackend(ImageRGB background_image, ImageRGB target_image, std::string method)
         : d_background_image(background_image), d_target_image(target_image), m_method(std::move(method)) {}
 
-    ~CUDABackend() noexcept(false)
+    ~CUDABackend()
     {
         if (d_background_image.data)
         {
-            CUDA_CHECK(cudaFree(d_background_image.data));
+            cudaFree(d_background_image.data);
         }
         if (d_target_image.data)
         {
-            CUDA_CHECK(cudaFree(d_target_image.data));
+            cudaFree(d_target_image.data);
         }
     }
 

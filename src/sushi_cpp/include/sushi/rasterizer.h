@@ -200,7 +200,7 @@ public:
             if (method == "pointwise") {
                 int64_t total_sq_err_delta = 0;
                 int32_t min_x = std::min({current_vertices[0], current_vertices[2], current_vertices[4]});
-                int32_t max_x = std::max({current_vertices[0], current_vertices[0], current_vertices[4]});
+                int32_t max_x = std::max({current_vertices[0], current_vertices[2], current_vertices[4]});
                 int32_t min_y = std::min({current_vertices[1], current_vertices[3], current_vertices[5]});
                 int32_t max_y = std::max({current_vertices[1], current_vertices[3], current_vertices[5]});
                 min_x = std::max(0, min_x);
