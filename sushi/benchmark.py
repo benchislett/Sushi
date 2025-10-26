@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import argparse
 import math
 import os
 import time
@@ -396,6 +397,19 @@ def main() -> None:
     """
     Main function to generate previews and execute all benchmarks.
     """
+    parser = argparse.ArgumentParser(
+        description="Run Sushi rendering backend benchmarks"
+    )
+    parser.add_argument(
+        "--workload",
+        "-w",
+        type=str,
+        choices=["light", "heavy", "full"],
+        default="heavy",
+        help="Benchmark workload level (default: heavy)",
+    )
+    args = parser.parse_args()
+
     console = Console()
 
     # 2. Run Benchmarks
@@ -403,14 +417,37 @@ def main() -> None:
 
     # Visualize the benchmark scenarios for reference
     sample_benchmark_data = get_golden_benchmark_data(N=100)
+
+    # Filter scenarios based on workload: 'light' workload skips some scenarios
+    light_scenarios = {"XL Random", "Full Coverage", "Concentrated Micro"}
+    # Validate that light scenarios exist in benchmark data
+    available_scenarios = {v["short_name"] for v in sample_benchmark_data.values()}
+    assert light_scenarios.issubset(available_scenarios), (
+        f"Light scenarios not found in benchmark data. "
+        f"Missing: {light_scenarios - available_scenarios}"
+    )
+    if args.workload == "light":
+        sample_benchmark_data = {
+            k: v
+            for k, v in sample_benchmark_data.items()
+            if v["short_name"] in light_scenarios
+        }
+
     plot_example_triangles(sample_benchmark_data)
 
     results_data: dict[str, dict[str, Any]] = defaultdict(dict)
 
     scenario_names = [v["short_name"] for v in sample_benchmark_data.values()]
 
+    # Filter backends based on workload
+    backends_to_skip = set()
+    if args.workload != "full":
+        backends_to_skip = {"OpenCV", "Pillow", "OpenGL"}
+
     available_backend_configs = []
     for config in ALL_BENCHMARK_CONFIGS:
+        if config.short_name in backends_to_skip:
+            continue
         if config.backend.is_available():
             available_backend_configs.append(config)
         else:
@@ -498,6 +535,14 @@ def main() -> None:
     ) as live:
         for batch_size in sorted(all_batch_sizes_to_run):
             benchmark_input_configs = get_golden_benchmark_data(N=batch_size)
+            # Filter scenarios based on workload
+            if args.workload == "light":
+                benchmark_input_configs = {
+                    k: v
+                    for k, v in benchmark_input_configs.items()
+                    if v["short_name"] in light_scenarios
+                }
+
             benchmark_input_data: List[BenchmarkInputData] = []
             for config_name, config in benchmark_input_configs.items():  # type: ignore
                 assert isinstance(config, dict)
