@@ -59,7 +59,7 @@ BENCHMARK_DEFAULT_BATCH_SIZES = [1]
 # Larger batch size for C++ backends that can amortize the binding overhead
 BENCHMARK_CPP_BATCH_SIZES = [100]
 # Very large batch sizes for CUDA backends that leverage massive parallelism
-BENCHMARK_CUDA_BATCH_SIZES = [10, 100, 1000, 10_000, 100_000]
+BENCHMARK_CUDA_BATCH_SIZES = [10, 100, 1000, 10_000, 100_000, 1_000_000]
 
 
 ALL_BENCHMARK_CONFIGS: List[BenchmarkConfig] = [
@@ -271,16 +271,16 @@ def get_golden_benchmark_data(N: int) -> dict[str, dict[str, Any]]:
             "random_seed": RANDOM_SEED,
             "short_name": "Lg Uniform Lg Canvas",
         },
-        "Very Large Uniform on 1024x1024": {
+        "Huge Uniform on 1024x1024": {
             "count": N,
             "screen_width": VERY_LARGE_IMAGE_SIZE,
             "screen_height": VERY_LARGE_IMAGE_SIZE,
             "shape_type": "equilateral",
-            "size": "very_large",
+            "size": "huge",
             "distribution": "uniform",
             "random_rotation": True,
             "random_seed": RANDOM_SEED,
-            "short_name": "XL Uniform XL Canvas",
+            "short_name": "XXL Uniform XL Canvas",
         },
         "Sparse Small Random on 1024x1024": {
             "count": N,
