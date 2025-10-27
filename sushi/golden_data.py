@@ -119,68 +119,50 @@ def generate_triangles(
             "Choose 'uniform', 'normal', or 'spaced'."
         )
 
-    # 2. Generate each triangle based on shape, size, and center point
-    triangles = []
+    # 2. Generate rotation angles and sizes for each triangle
+    angles: NDArray[np.float64] = np.zeros(count)
+    full_rotate_shape_types = ["equilateral", "right", "random"]
+    jitter_shape_types = ["wide", "tall", "slanted-up", "slanted-down"]
+    if shape_type in full_rotate_shape_types and random_rotation:
+        angles = np.random.uniform(0, 2 * np.pi, size=count)
+    elif shape_type in jitter_shape_types:
+        if random_rotation:
+            jitter_amount = 0.1 * np.pi
+            angles = np.random.uniform(-jitter_amount, jitter_amount, size=count)
+        if shape_type == "tall":
+            angles += np.pi / 2
+        elif shape_type == "slanted-up":
+            angles += -np.pi / 4  # y = -x diagonal
+        elif shape_type == "slanted-down":
+            angles += np.pi / 4  # y = x diagonal
+
+    # 3. Generate sizes for each triangle
     min_len, max_len = SIZE_RANGES[size]
+    lengths = np.random.uniform(min_len, max_len, size=count)
 
-    it = range(count) if count <= 1_000_000 else tqdm(range(count))
-    for i in it:
-        length = np.random.uniform(min_len, max_len)
-        center = centers[i]
-        angle: float
+    # 4. Generate each triangle based on shape type and size
+    base_tris: NDArray[np.float64]
+    if shape_type == "equilateral":
+        base_tris = _generate_equilateral_vectorized(lengths)
+    elif shape_type == "right":
+        base_tris = _generate_right_vectorized(lengths, lengths)
+    elif shape_type == "random":
+        base_tris = _generate_random_vectorized(lengths / 2)  # Use length as radius
+    elif shape_type in ["wide", "tall", "slanted-up", "slanted-down"]:
+        base_tris = _generate_long_triangle_vectorized(lengths)
+        # Apply flipping for wide/tall/slanted shapes
+        if random_rotation:
+            flip_mask = np.random.rand(count) < 0.5
+            base_tris[flip_mask, :, 0] *= -1
 
-        # Select the appropriate shape generation function
+    # 5. Apply rotation and translation to each triangle
+    cosines = np.cos(angles)
+    sines = np.sin(angles)
+    rot_matrices_T = np.array([[cosines, sines], [-sines, cosines]]).transpose(2, 0, 1)
+    rotated_tris = base_tris @ rot_matrices_T  # Shape: (count, 3, 2)
+    translated_tris = rotated_tris + centers[:, np.newaxis, :]
 
-        # Triangles that can be fully randomly rotated
-        if shape_type in ["equilateral", "right", "random"]:
-            if shape_type == "equilateral":
-                base_tri = _generate_equilateral(length)
-            elif shape_type == "right":
-                base_tri = _generate_right(length, length)  # Isosceles
-            elif shape_type == "random":
-                base_tri = _generate_random(length / 2)  # Use length as a radius
-
-            # Apply a full random rotation for these types if enabled
-            if random_rotation:
-                angle = np.random.uniform(0, 2 * np.pi)
-
-        # Triangles with constrained orientations that get slight jitter and flipping
-        elif shape_type in ["wide", "tall", "slanted-up", "slanted-down"]:
-            base_tri = _generate_long_triangle(length)
-
-            if random_rotation:
-                # Randomly flip the triangle along its length
-                if np.random.rand() < 0.5:
-                    base_tri[:, 0] *= -1
-
-                # Add small random rotation (jitter)
-                jitter = np.random.uniform(-0.1 * np.pi, 0.1 * np.pi)
-            else:
-                jitter = 0
-
-            if shape_type == "wide":
-                angle = 0 + jitter
-            elif shape_type == "tall":
-                angle = np.pi / 2 + jitter
-            elif shape_type == "slanted-up":
-                angle = -np.pi / 4 + jitter  # y = -x diagonal
-            elif shape_type == "slanted-down":
-                angle = np.pi / 4 + jitter  # y = x diagonal
-        else:
-            raise ValueError(f"Invalid shape_type '{shape_type}'.")
-
-        # Apply rotation if any
-        if angle != 0:
-            rotation_matrix = np.array(
-                [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
-            )
-            base_tri = np.dot(base_tri, rotation_matrix.T)
-
-        # Translate the generated triangle (centered at origin) to its final position
-        translated_tri = base_tri + center
-        triangles.append(translated_tri)
-
-    return np.array(triangles, dtype=np.int32)
+    return np.array(translated_tris, dtype=np.int32)
 
 
 # --- Helper Functions for Distributions ---
@@ -241,41 +223,44 @@ def _generate_spaced_centers(
 # --- Helper Functions for Triangle Shapes (centered at origin) ---
 
 
-def _generate_equilateral(side: float) -> NDArray[np.float64]:
-    """Generates an equilateral triangle centered at the origin."""
+def _generate_equilateral_vectorized(side: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Generates equilateral triangles for an array of side lengths."""
     height = side * np.sqrt(3) / 2
-    # Vertices are calculated based on geometric properties
-    v1 = np.array([0, 2 * height / 3])
-    v2 = np.array([-side / 2, -height / 3])
-    v3 = np.array([side / 2, -height / 3])
-    return np.array([v1, v2, v3])
+    v1 = np.stack([np.zeros_like(side), 2 * height / 3], axis=-1)
+    v2 = np.stack([-side / 2, -height / 3], axis=-1)
+    v3 = np.stack([side / 2, -height / 3], axis=-1)
+    return np.stack([v1, v2, v3], axis=1)
 
 
-def _generate_right(width: float, height: float) -> NDArray[np.float64]:
-    """Generates a right triangle centered at the origin."""
-    # Create vertices for a right triangle at (0,0), (width,0), (0,height)
-    # and then translate them so the centroid is at the origin.
-    v1 = np.array([-width / 3, -height / 3])
-    v2 = np.array([2 * width / 3, -height / 3])
-    v3 = np.array([-width / 3, 2 * height / 3])
-    return np.array([v1, v2, v3])
+def _generate_right_vectorized(
+    width: NDArray[np.float64], height: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """Generates right triangles for arrays of widths and heights."""
+    v1 = np.stack([-width / 3, -height / 3], axis=-1)
+    v2 = np.stack([2 * width / 3, -height / 3], axis=-1)
+    v3 = np.stack([-width / 3, 2 * height / 3], axis=-1)
+    return np.stack([v1, v2, v3], axis=1)
 
 
-def _generate_long_triangle(length: float) -> NDArray[np.float64]:
-    """Generates a long, thin triangle for wide/tall shapes."""
+def _generate_long_triangle_vectorized(
+    length: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Generates long, thin triangles for an array of lengths."""
     height = length / 8.0  # Make it very thin relative to its length
-    # Shape has two vertices on one side and one on the other
-    return np.array(
-        [[-length / 2, -height / 2], [-length / 2, height / 2], [length / 2, 0]]
-    )
+    v1 = np.stack([-length / 2, -height / 2], axis=-1)
+    v2 = np.stack([-length / 2, height / 2], axis=-1)
+    v3 = np.stack([length / 2, np.zeros_like(length)], axis=-1)
+    return np.stack([v1, v2, v3], axis=1)
 
 
-def _generate_random(radius: float) -> NDArray[np.float64]:
-    """Generates a random triangle with vertices within a given radius."""
-    angles = np.random.uniform(0, 2 * np.pi, 3)
-    radii = np.random.uniform(0, radius, 3)
+def _generate_random_vectorized(
+    radius: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Generates random triangles for an array of radii."""
+    angles = np.random.uniform(0, 2 * np.pi, (radius.shape[0], 3))
+    radii = np.random.uniform(0, radius[:, np.newaxis], (radius.shape[0], 3))
 
     x_coords = radii * np.cos(angles)
     y_coords = radii * np.sin(angles)
 
-    return np.vstack([x_coords, y_coords]).T
+    return np.stack([x_coords, y_coords], axis=-1)
