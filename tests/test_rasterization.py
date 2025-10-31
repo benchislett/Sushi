@@ -94,7 +94,7 @@ def reference_triangles_dataset() -> NDArray[np.int32]:
     """A pytest fixture to provide a very large set of test triangles for
     performance and scalability testing."""
     return generate_triangles(
-        count=20,
+        count=100,
         screen_width=256,
         screen_height=256,
         size="medium",
