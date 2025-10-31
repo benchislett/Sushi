@@ -30,7 +30,7 @@ from sushi.backend.pillow import PillowBackend
 from sushi.golden_data import generate_triangles
 
 # Assuming the provided interface and golden data are in these locations
-from sushi.interface import Backend, Config, DrawLossContext
+from sushi.interface import Backend, Config, DrawLossContext, count_pixels_batch
 
 
 @dataclass(frozen=True)
@@ -315,29 +315,6 @@ class BenchmarkResult:
     pixels_per_sec: float
 
 
-def count_pixels_in_batch(
-    vertices: NDArray[np.int32],
-    image_size: int,
-    backend: type["Backend"],
-    backend_config: Optional[Config],
-) -> int:
-    """
-    Calculates the total number of pixels that are covered by a DrawLoss batch.
-
-    Note: Triangles are treated as independent. There are no coverage assumptions
-    or culling rules. The return value is the sum of the pixel counts of each triangle.
-    """
-    canvas = np.zeros((image_size, image_size, 3), dtype=np.uint8)
-    sample_color = np.array([255, 255, 255, 255], dtype=np.uint8)
-
-    context = backend.create_drawloss_context(
-        background_image=canvas, target_image=canvas, config=backend_config
-    )
-
-    result = context.drawloss(vertices, np.tile(sample_color, (vertices.shape[0], 1)))
-    return int((result // (255 * 255 * 3)).sum())
-
-
 def run_benchmark(
     input_data: BenchmarkInputData,
     run_config: BenchmarkConfig,
@@ -364,7 +341,9 @@ def run_benchmark(
 
     N = config["count"]
 
-    total_pixels = count_pixels_in_batch(vertices, size, backend, backend_config)
+    total_pixels = int(
+        count_pixels_batch(vertices, size, backend, backend_config).sum()
+    )
 
     context = backend.create_drawloss_context(
         background_image=background_image,

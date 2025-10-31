@@ -332,3 +332,23 @@ class Backend(ABC):
             raise ValueError(
                 f"Unknown mode '{mode}'. Supported modes are 'draw' and 'drawloss'."
             )
+
+
+def count_pixels_batch(
+    vertices: NDArray[np.int32],
+    image_size: int,
+    backend: type["Backend"],
+    backend_config: Optional[Config] = None,
+) -> NDArray[np.int64]:
+    """
+    Calculates the total number of pixels that are covered by each triangle in a batch.
+    """
+    canvas = np.zeros((image_size, image_size, 3), dtype=np.uint8)
+    sample_color = np.array([255, 255, 255, 255], dtype=np.uint8)
+
+    context = backend.create_drawloss_context(
+        background_image=canvas, target_image=canvas, config=backend_config
+    )
+
+    result = context.drawloss(vertices, np.tile(sample_color, (vertices.shape[0], 1)))
+    return (result // (255 * 255 * 3)).astype(np.int64)

@@ -97,7 +97,7 @@ __global__ void drawloss_kernel_naive_triangle_parallel(
         int32_t w2 = w2_row;
         for (int x = min_x; x <= max_x; ++x)
         {
-            if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0))
+            if (w0 <= 0 && w1 <= 0 && w2 <= 0)
             {
                 const int bg_index = (y * background.width + x) * 3;
                 const int tgt_index = (y * target.width + x) * 3;
@@ -179,7 +179,7 @@ __global__ void drawloss_kernel_naive_pixel_parallel(
         const int32_t w2 = edge_function(v0_x, v0_y, v1_x, v1_y, x, y);
 
         int32_t delta_loss = 0;
-        if ((w0 >= 0 && w1 >= 0 && w2 >= 0) || (w0 <= 0 && w1 <= 0 && w2 <= 0)) {
+        if (w0 <= 0 && w1 <= 0 && w2 <= 0) {
             uint8_t out_r, out_g, out_b;
             composit_over(
                 &out_r, &out_g, &out_b,
