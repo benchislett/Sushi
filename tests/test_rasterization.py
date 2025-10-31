@@ -168,7 +168,7 @@ def test_large_triangle_set_pixel_counts(
         ref_count = reference_dataset_pixel_counts[i]
         test_count = pixel_counts[i]
         abs_diff = abs(int(test_count) - int(ref_count))
-        pct_diff = abs_diff / ref_count if ref_count > 0 else 0
+        pct_diff = abs_diff / float(ref_count) if ref_count > 0 else 0.0
 
         if (
             abs_diff <= close_match_fine_px_threshold
