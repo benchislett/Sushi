@@ -114,6 +114,25 @@ public:
         if (num_triangles == 0)
             return;
 
+        // Ensure the same winding order for all triangles
+        for (int i = 0; i < num_triangles; ++i)
+        {
+            int32_t x0 = vertices.data()[i * 6 + 0];
+            int32_t y0 = vertices.data()[i * 6 + 1];
+            int32_t x1 = vertices.data()[i * 6 + 2];
+            int32_t y1 = vertices.data()[i * 6 + 3];
+            int32_t x2 = vertices.data()[i * 6 + 4];
+            int32_t y2 = vertices.data()[i * 6 + 5];
+
+            int64_t cross = static_cast<int64_t>(x1 - x0) * static_cast<int64_t>(y2 - y0) -
+                            static_cast<int64_t>(y1 - y0) * static_cast<int64_t>(x2 - x0);
+            if (cross < 0)
+            {                // Swap vertex 1 and vertex 2 to change winding order
+                std::swap(vertices.data()[i * 6 + 2], vertices.data()[i * 6 + 4]);
+                std::swap(vertices.data()[i * 6 + 3], vertices.data()[i * 6 + 5]);
+            }
+        }
+
         // --- Allocate GPU memory for inputs/outputs ---
         int32_t *d_vertices;
         uint8_t *d_colors;

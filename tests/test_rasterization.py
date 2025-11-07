@@ -7,22 +7,25 @@ import pytest
 from numpy.typing import NDArray
 from PIL import Image
 
-from sushi.backend.cpp import CPPBackend
-from sushi.backend.cuda import CUDABackend
+from sushi.backend.cpp import CPPBackend, CPPConfig
+from sushi.backend.cuda import CUDABackend, CUDAConfig
 from sushi.backend.numpy import NumpyBackend
 from sushi.backend.opencv import OpenCVBackend
 from sushi.backend.opengl import OpenGLBackend
 from sushi.backend.pillow import PillowBackend
-from sushi.interface import Backend
+from sushi.golden_data import generate_triangles
+from sushi.interface import Backend, Config, count_pixels_batch
 from sushi.utils import np_image_loss
 
-AllBackends = [
-    PillowBackend,
-    NumpyBackend,
-    OpenCVBackend,
-    OpenGLBackend,
-    CPPBackend,
-    CUDABackend,
+AllBackendsToTest = [
+    (PillowBackend, None),
+    (NumpyBackend, None),
+    (OpenCVBackend, None),
+    (OpenGLBackend, None),
+    (CPPBackend, CPPConfig(method="scanline")),
+    (CPPBackend, CPPConfig(method="pointwise")),
+    (CUDABackend, CUDAConfig(method="naive-pixel-parallel")),
+    (CUDABackend, CUDAConfig(method="naive-triangle-parallel")),
 ]
 
 
@@ -67,12 +70,12 @@ def _load_test_image() -> NDArray[np.uint8]:
     return np.array(Image.open(expected_image_path).convert("RGB"))
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def setup_data() -> TestImageData:
     """A pytest fixture to provide common test data."""
     width, height = 200, 150
     image_np = np.full((height, width, 3), 255, dtype=np.uint8)
-    vertices = np.array([(10, 10), (50, 140), (195, 70)], dtype=np.int32)
+    vertices = np.array([(10, 10), (195, 70), (50, 140)], dtype=np.int32)
     color = np.array((200, 55, 79, 192), dtype=np.uint8)
     expected_image_np = _load_test_image()
 
@@ -86,8 +89,126 @@ def setup_data() -> TestImageData:
     )
 
 
-@pytest.mark.parametrize("raster_backend", AllBackends)
-def test_can_clone_drawloss_context(raster_backend: type["Backend"]) -> None:
+@pytest.fixture(scope="module")
+def reference_triangles_dataset() -> NDArray[np.int32]:
+    """A pytest fixture to provide a very large set of test triangles for
+    performance and scalability testing."""
+    return generate_triangles(
+        count=100,
+        screen_width=256,
+        screen_height=256,
+        size="medium",
+        shape_type="random",
+        distribution="uniform",
+        random_rotation=True,
+        random_seed=38,
+    )
+
+
+@pytest.fixture(scope="module")
+def reference_dataset_pixel_counts(
+    reference_triangles_dataset: NDArray[np.int32],
+) -> NDArray[np.int64]:
+    """A pytest fixture to provide a reference pixel counts array for
+    a very large set of test triangles. Calculated using the Numpy backend."""
+    backend = NumpyBackend
+    if not backend.is_available():
+        pytest.skip(
+            f"Reference backend {backend.name} is not available on this system."
+        )
+
+    pixel_counts = count_pixels_batch(
+        vertices=reference_triangles_dataset,
+        image_size=256,
+        backend=backend,
+    )
+
+    return pixel_counts
+
+
+@pytest.mark.parametrize(
+    "raster_backend, config",
+    [(b, c) for b, c in AllBackendsToTest if b != NumpyBackend],
+)
+def test_large_triangle_set_pixel_counts(
+    reference_triangles_dataset: NDArray[np.int32],
+    reference_dataset_pixel_counts: NDArray[np.int64],
+    raster_backend: type["Backend"],
+    config: Optional["Config"],
+) -> None:
+    """
+    Tests that the pixel counting function produces correct counts for a large
+    set of triangles by comparing to a reference dataset generated using the
+    Numpy backend.
+    """
+    maybe_skip_backend(raster_backend, "drawloss")
+
+    pixel_counts = count_pixels_batch(
+        vertices=reference_triangles_dataset,
+        image_size=256,
+        backend=raster_backend,
+        backend_config=config,
+    )
+
+    assert (
+        pixel_counts.shape == reference_dataset_pixel_counts.shape
+    ), "Pixel counts shape mismatch."
+
+    # Define acceptance criteria:
+    # At least 50% of triangle counts must match within a tolerance of 5 pixels or 40%.
+    # At least 60% of triangle counts must match within a tolerance of 10 pixels or 60%.
+    total_triangles = pixel_counts.shape[0]
+    close_matches_fine = 0
+    close_matches_coarse = 0
+    close_match_fine_px_threshold = 5
+    close_match_coarse_px_threshold = 10
+    close_match_fine_pct_threshold = 0.4
+    close_match_coarse_pct_threshold = 0.6
+    for i in range(total_triangles):
+        ref_count = reference_dataset_pixel_counts[i]
+        test_count = pixel_counts[i]
+        abs_diff = abs(int(test_count) - int(ref_count))
+        pct_diff = abs_diff / float(ref_count) if ref_count > 0 else 0.0
+
+        if (
+            abs_diff <= close_match_fine_px_threshold
+            or pct_diff <= close_match_fine_pct_threshold
+        ):
+            close_matches_fine += 1
+        if (
+            abs_diff <= close_match_coarse_px_threshold
+            or pct_diff <= close_match_coarse_pct_threshold
+        ):
+            close_matches_coarse += 1
+
+    match_rate_fine = close_matches_fine / total_triangles
+    match_rate_coarse = close_matches_coarse / total_triangles
+    assert match_rate_fine >= 0.50, (
+        f"Only {match_rate_fine:.2%} of triangle pixel counts matched "
+        f"within {close_match_fine_px_threshold} pixels or "
+        f"{close_match_fine_pct_threshold * 100}% tolerance."
+    )
+    assert match_rate_coarse >= 0.60, (
+        f"Only {match_rate_coarse:.2%} of triangle pixel counts matched "
+        f"within {close_match_coarse_px_threshold} pixels or "
+        f"{close_match_coarse_pct_threshold * 100}% tolerance."
+    )
+
+    print(
+        f"Backend {raster_backend.name} pixel counting results: "
+        f"{close_matches_fine} / {total_triangles} ({match_rate_fine:.2%}) matched "
+        f"within {close_match_fine_px_threshold} pixels or "
+        f"{close_match_fine_pct_threshold * 100}% tolerance; "
+        f"{close_matches_coarse} / {total_triangles} ({match_rate_coarse:.2%}) matched "
+        f"within {close_match_coarse_px_threshold} pixels or "
+        f"{close_match_coarse_pct_threshold * 100}% tolerance."
+    )
+
+
+@pytest.mark.parametrize("raster_backend, config", AllBackendsToTest)
+def test_can_clone_drawloss_context(
+    raster_backend: type["Backend"], config: Optional["Config"]
+) -> None:
     """
     Tests that the backend's drawloss context can be cloned without errors.
     """
@@ -95,6 +216,7 @@ def test_can_clone_drawloss_context(raster_backend: type["Backend"]) -> None:
     context = raster_backend.create_drawloss_context(
         background_image=np.zeros((10, 10, 3), dtype=np.uint8),
         target_image=np.zeros((10, 10, 3), dtype=np.uint8),
+        config=config,
     )
 
     cloned_context = context.clone()
@@ -104,14 +226,17 @@ def test_can_clone_drawloss_context(raster_backend: type["Backend"]) -> None:
     ), "Cloned context is of incorrect type."
 
 
-@pytest.mark.parametrize("raster_backend", AllBackends)
-def test_can_clone_draw_context(raster_backend: type["Backend"]) -> None:
+@pytest.mark.parametrize("raster_backend, config", AllBackendsToTest)
+def test_can_clone_draw_context(
+    raster_backend: type["Backend"], config: Optional["Config"]
+) -> None:
     """
     Tests that the backend's draw context can be cloned without errors.
     """
     maybe_skip_backend(raster_backend, "draw")
     context = raster_backend.create_draw_context(
-        background_image=np.zeros((10, 10, 3), dtype=np.uint8)
+        background_image=np.zeros((10, 10, 3), dtype=np.uint8),
+        config=config,
     )
 
     cloned_context = context.clone()
@@ -127,9 +252,11 @@ def test_can_clone_draw_context(raster_backend: type["Backend"]) -> None:
     ), "Cloned context is of incorrect type."
 
 
-@pytest.mark.parametrize("raster_backend", AllBackends)
+@pytest.mark.parametrize("raster_backend, config", AllBackendsToTest)
 def test_draw_single_match_reference(
-    setup_data: TestImageData, raster_backend: type["Backend"]
+    setup_data: TestImageData,
+    raster_backend: type["Backend"],
+    config: Optional["Config"],
 ) -> None:
     """
     Tests that drawing a triangle produces the exact expected image by
@@ -157,7 +284,9 @@ def test_draw_single_match_reference(
     color = setup_data.color
     expected_image_np = setup_data.expected_image_np
 
-    context = raster_backend.create_draw_context(background_image=image_np)
+    context = raster_backend.create_draw_context(
+        background_image=image_np, config=config
+    )
 
     drawn_image_np = context.draw(vertices, color)
 
@@ -191,15 +320,17 @@ def test_draw_single_match_reference(
         assert is_close, f"Image does not match reference. See '{failed_image_path}'."
 
 
-@pytest.mark.parametrize("raster_backend", AllBackends)
+@pytest.mark.parametrize("raster_backend, config", AllBackendsToTest)
 def test_count_pixels_single_match_reference(
-    setup_data: TestImageData, raster_backend: type["Backend"]
+    setup_data: TestImageData,
+    raster_backend: type["Backend"],
+    config: Optional["Config"],
 ) -> None:
     """
     Tests that the pixel counting function produces a count close to the
     expected value. The expected value is derived from the saved reference image.
     """
-    maybe_skip_backend(raster_backend, "draw")
+    maybe_skip_backend(raster_backend, "drawloss")
     MATCH_RELATIVE_TOLERANCE = 0.025  # Allow 2.5% tolerance
 
     vertices = setup_data.vertices
@@ -207,10 +338,14 @@ def test_count_pixels_single_match_reference(
         (setup_data.expected_image_np.sum(axis=-1) != (3 * 255)).sum()
     )
 
-    input_image = np.zeros((setup_data.height, setup_data.width, 3), dtype=np.uint8)
-    context = raster_backend.create_draw_context(background_image=input_image)
-    out_image = context.draw(vertices, np.array((255, 255, 255, 255), dtype=np.uint8))
-    counted_pixels = int((out_image.sum(axis=-1) == (3 * 255)).sum())
+    counted_pixels = int(
+        count_pixels_batch(
+            vertices=vertices[np.newaxis, ...],
+            image_size=setup_data.width,
+            backend=raster_backend,
+            backend_config=config,
+        ).sum()
+    )
 
     print(
         f"Backend {raster_backend.name} counted {counted_pixels} pixels, "
@@ -222,9 +357,11 @@ def test_count_pixels_single_match_reference(
     )
 
 
-@pytest.mark.parametrize("raster_backend", AllBackends)
+@pytest.mark.parametrize("raster_backend, config", AllBackendsToTest)
 def test_drawloss_single(
-    setup_data: TestImageData, raster_backend: type["Backend"]
+    setup_data: TestImageData,
+    raster_backend: type["Backend"],
+    config: Optional["Config"],
 ) -> None:
     """
     Tests the draw-loss calculation by comparing the function's output
@@ -249,7 +386,7 @@ def test_drawloss_single(
     expected_loss_change = reference_final_loss - base_loss
 
     context = raster_backend.create_drawloss_context(
-        background_image=image_np, target_image=target_image_np
+        background_image=image_np, target_image=target_image_np, config=config
     )
 
     draw_loss = int(
@@ -265,8 +402,8 @@ def test_drawloss_single(
 
     print(
         f"Backend {raster_backend.name} computed draw loss change of "
-        f"{draw_loss:.6f}, expected {expected_loss_change:.6f}."
-        f" (tolerance {tolerance_bounds[0]:.6f} to {tolerance_bounds[1]:.6f})"
+        f"{draw_loss:.0f}, expected {expected_loss_change:.0f}."
+        f" (tolerance {tolerance_bounds[0]:.0f} to {tolerance_bounds[1]:.0f})"
     )
 
     np.testing.assert_allclose(
